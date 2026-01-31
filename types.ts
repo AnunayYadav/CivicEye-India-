@@ -1,3 +1,4 @@
+
 export enum ProblemStatus {
   PENDING = 'PENDING',
   IN_PROGRESS = 'IN_PROGRESS',
@@ -46,4 +47,12 @@ export interface DashboardStats {
   pending: number;
   resolved: number;
   byCategory: Record<string, number>;
+}
+
+export interface MapplsSuggestion {
+  eLoc: string;
+  placeName: string;
+  placeAddress: string;
+  latitude?: number;
+  longitude?: number;
 }

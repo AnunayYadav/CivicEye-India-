@@ -1,15 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Problem, ProblemStatus } from '../types';
+import { Problem, ProblemStatus, MapplsSuggestion } from '../types';
 import { dataStore } from '../services/store';
 import { INDIA_CENTER, DEFAULT_ZOOM } from '../constants';
-import { Clock } from 'lucide-react';
-
-// Declaration for Mappls on window
-declare global {
-  interface Window {
-    mappls: any;
-  }
-}
+import { Clock, Search, X } from 'lucide-react';
+import { loadMapplsSDK, searchPlaces } from '../services/mapplsUtils';
 
 interface MapViewProps {
   onProblemClick?: (problem: Problem) => void;
@@ -19,11 +13,15 @@ interface MapViewProps {
 const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
-  const clusterLayer = useRef<any>(null); // For Mappls Marker Cluster
-  const markersRef = useRef<any[]>([]); // Keep track of markers
+  const clusterLayer = useRef<any>(null);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<MapplsSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // 1. Fetch Problems
   useEffect(() => {
@@ -37,54 +35,11 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
     };
   }, []);
 
-  // 2. Load Mappls SDK Script
+  // 2. Load Mappls SDK
   useEffect(() => {
-    if (window.mappls) {
-      setIsMapLoaded(true);
-      return;
-    }
-
-    // Safely access environment variable to prevent crash if env is undefined
-    const key = (import.meta as any).env?.VITE_MAPPLS_JS_KEY;
-    
-    if (!key) {
-      console.warn("VITE_MAPPLS_JS_KEY is missing from import.meta.env");
-      setError("Mappls API Key not found. Please set VITE_MAPPLS_JS_KEY in your .env file.");
-      return;
-    }
-
-    const loadScript = async () => {
-      try {
-        // Load Main Map SDK
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = `https://apis.mappls.com/advancedmaps/api/${key}/map_sdk?layer=vector&v=3.0`;
-          script.async = true;
-          script.defer = true;
-          script.onload = resolve;
-          script.onerror = () => reject(new Error("Failed to load Mappls Map SDK"));
-          document.head.appendChild(script);
-        });
-
-        // Load Plugins (required for clustering if not in main bundle, usually safe to load)
-        await new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = `https://apis.mappls.com/advancedmaps/api/${key}/map_sdk_plugins?v=3.0`;
-            script.async = true;
-            script.defer = true;
-            script.onload = resolve;
-            script.onerror = () => reject(new Error("Failed to load Mappls Plugins"));
-            document.head.appendChild(script);
-        });
-
-        setIsMapLoaded(true);
-      } catch (err: any) {
-        console.error(err);
-        setError(err.message || "Error loading maps");
-      }
-    };
-
-    loadScript();
+    loadMapplsSDK()
+      .then(() => setIsMapLoaded(true))
+      .catch((err) => setError(err.message || "Error loading maps"));
   }, []);
 
   // 3. Initialize Map
@@ -92,16 +47,14 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
     if (!isMapLoaded || !mapRef.current || mapInstance.current) return;
 
     try {
-        // Initialize Map
         mapInstance.current = new window.mappls.Map(mapRef.current, {
             center: [INDIA_CENTER.lat, INDIA_CENTER.lng],
             zoom: DEFAULT_ZOOM,
-            location: true, // Show user location
+            location: true,
             clickableIcons: false,
         });
 
         mapInstance.current.addListener('load', () => {
-             // Map Loaded fully
              renderMarkers();
         });
 
@@ -127,36 +80,80 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
     }
   }, [focusedLocation]);
 
+  // 6. Popup Event Listener
+  useEffect(() => {
+    const handlePopupClick = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        const btn = target.closest('.view-problem-btn');
+        if (btn && btn.hasAttribute('data-problem-id')) {
+            e.preventDefault();
+            const problemId = btn.getAttribute('data-problem-id');
+            if (problemId) {
+                const problem = dataStore.getProblemById(problemId);
+                if (problem && onProblemClick) onProblemClick(problem);
+            }
+        }
+    };
+    const mapContainer = mapRef.current;
+    if (mapContainer) mapContainer.addEventListener('click', handlePopupClick);
+    return () => {
+        if (mapContainer) mapContainer.removeEventListener('click', handlePopupClick);
+    };
+  }, [onProblemClick]);
+
+  // Search Logic
+  useEffect(() => {
+      const delayDebounceFn = setTimeout(async () => {
+        if (searchQuery.length > 2) {
+            const results = await searchPlaces(searchQuery);
+            setSuggestions(results);
+            setShowSuggestions(true);
+        } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
+        }
+      }, 300);
+
+      return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  const handleSearchSelect = (s: MapplsSuggestion) => {
+      setSearchQuery(s.placeName);
+      setShowSuggestions(false);
+      if (s.latitude && s.longitude && mapInstance.current) {
+          mapInstance.current.flyTo({
+              center: [s.latitude, s.longitude],
+              zoom: 16
+          });
+          // Add temporary marker
+          new window.mappls.Marker({
+              map: mapInstance.current,
+              position: { lat: s.latitude, lng: s.longitude },
+              title: s.placeName
+          });
+      }
+  };
+
   const renderMarkers = () => {
       if (!mapInstance.current || !window.mappls) return;
 
-      // Clear existing layer if it exists
       if (clusterLayer.current) {
-          // Check documentation for remove logic, often setMap(null) or remove()
-          try {
-             mapInstance.current.removeLayer(clusterLayer.current);
-          } catch(e) {/* ignore */}
+          try { mapInstance.current.removeLayer(clusterLayer.current); } catch(e) {}
           clusterLayer.current = null;
       }
       
-      // Clear individual markers if we tracked them
-      // In Mappls clustering, we pass an array of markers to the clusterer
-      
       const mapplsMarkers = problems.map(problem => {
-          // Status Color
-          let color = '#ef4444'; // Red
-          if (problem.status === ProblemStatus.RESOLVED) color = '#10b981'; // Green
-          if (problem.status === ProblemStatus.IN_PROGRESS) color = '#f59e0b'; // Orange
+          let color = '#ef4444';
+          if (problem.status === ProblemStatus.RESOLVED) color = '#10b981';
+          if (problem.status === ProblemStatus.IN_PROGRESS) color = '#f59e0b';
 
-          // Create Marker HTML
           const html = `
             <div class="marker-container" style="cursor: pointer;">
                 <div class="marker-glow" style="background-color: ${color}; box-shadow: 0 0 10px ${color};"></div>
             </div>
           `;
 
-          // Create Marker
-          const marker = new window.mappls.Marker({
+          return new window.mappls.Marker({
               position: { lat: problem.location.lat, lng: problem.location.lng },
               html: html,
               width: 20,
@@ -164,25 +161,9 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
               popupHtml: getPopupHtml(problem),
               title: problem.title
           });
-          
-          // Add click listener to bridge to React
-          // Note: Mappls markers might consume the click event for the popup.
-          // We can listen to 'click' on the marker object
-          marker.addListener('click', () => {
-              // We can still trigger the React state update
-              // But we let Mappls handle the popup display
-          });
-          
-          // Hack to hook into the "View" button inside the popup
-          // Since popup HTML is just string, we need to delegate event or bind it globally
-          // A simple way is to use a global function or rely on the "More Details" pattern
-          
-          return marker;
       });
 
       if (mapplsMarkers.length > 0) {
-          // Initialize Marker Cluster
-          // Mappls SDK v3 syntax for MarkerCluster
           try {
             clusterLayer.current = new window.mappls.MarkerCluster({
                 map: mapInstance.current,
@@ -193,32 +174,15 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
                     return `<div class="custom-cluster-icon" style="width:40px; height:40px;">${count}</div>`;
                 }
             });
-            
-            // Interaction: Zoom on cluster click is usually default in Mappls Cluster
           } catch (e) {
-              console.error("Cluster init failed", e);
-              // Fallback: just add markers to map
               mapplsMarkers.forEach(m => mapInstance.current.addLayer(m));
           }
       }
   };
 
-  // Helper to generate Popup HTML string
   const getPopupHtml = (problem: Problem) => {
       const dateStr = new Date(problem.createdAt).toLocaleDateString();
       const statusDisplay = problem.status.replace('_', ' ');
-      
-      // Note: We use onClick="window.handleProblemView(...)" pattern or similar if we want interactivity
-      // For now, let's keep it simple. The user can click the marker, see the popup. 
-      // To get to the detail page, they can click the marker, then we trigger `onProblemClick`?
-      // Actually, standard markers open popup. We need a button in popup.
-      
-      // We'll attach a unique ID to the button and listen on document body, or simpler:
-      // Expose a global function for the popup button to call.
-      
-      (window as any)[`viewProblem_${problem.id}`] = () => {
-          if (onProblemClick) onProblemClick(problem);
-      };
 
       return `
         <div class="min-w-[200px] font-sans">
@@ -234,12 +198,7 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
                 
                 <div style="display:flex; align-items:center; justify-content:space-between; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1);">
                     <span style="font-size:10px; color:#64748b;">${dateStr}</span>
-                    <button 
-                        onclick="window.viewProblem_${problem.id}()"
-                        style="background:#4f46e5; color:white; font-size:10px; font-weight:bold; padding:6px 12px; border-radius:6px; border:none; cursor:pointer;"
-                    >
-                        VIEW
-                    </button>
+                    <button class="view-problem-btn" data-problem-id="${problem.id}" style="background:#4f46e5; color:white; font-size:10px; font-weight:bold; padding:6px 12px; border-radius:6px; border:none; cursor:pointer;">VIEW</button>
                 </div>
             </div>
         </div>
@@ -258,13 +217,45 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
 
   return (
     <div className="w-full h-full relative bg-black">
-      {/* Map Container */}
-      <div 
-        ref={mapRef} 
-        id="map" 
-        className="w-full h-full z-0" 
-        style={{ background: '#000' }}
-      ></div>
+      <div ref={mapRef} id="map" className="w-full h-full z-0" style={{ background: '#000' }}></div>
+
+      {/* Map Search Bar */}
+      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 w-[90%] md:w-[400px] z-[400]">
+          <div className="relative group">
+              <div className="absolute inset-0 bg-white/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative flex items-center bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-full px-4 py-2.5 shadow-2xl">
+                  <Search size={16} className="text-white/50 mr-3" />
+                  <input 
+                    type="text" 
+                    placeholder="Search city, area, or landmark..." 
+                    className="bg-transparent border-none outline-none text-white text-sm w-full placeholder-white/30"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  {searchQuery && (
+                      <button onClick={() => setSearchQuery('')} className="text-white/40 hover:text-white">
+                          <X size={14} />
+                      </button>
+                  )}
+              </div>
+              
+              {/* Autosuggest Dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute top-full mt-2 w-full bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
+                      {suggestions.map((s, i) => (
+                          <div 
+                            key={i} 
+                            onClick={() => handleSearchSelect(s)}
+                            className="px-4 py-3 hover:bg-white/10 cursor-pointer border-b border-white/5 last:border-none flex flex-col"
+                          >
+                              <span className="text-sm font-bold text-white">{s.placeName}</span>
+                              <span className="text-xs text-white/50 truncate">{s.placeAddress}</span>
+                          </div>
+                      ))}
+                  </div>
+              )}
+          </div>
+      </div>
 
       {!isMapLoaded && (
           <div className="absolute inset-0 flex items-center justify-center bg-black z-50">
@@ -275,28 +266,25 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
           </div>
       )}
 
-      {/* Modern Status Badge */}
-      <div className="absolute top-6 right-6 z-[400] bg-black/60 backdrop-blur-xl border border-white/10 rounded-full pl-3 pr-4 py-2 flex items-center gap-3 shadow-2xl">
-        <span className="relative flex h-2.5 w-2.5">
+      {/* Legend & Status Badges */}
+      <div className="absolute top-4 right-4 z-[400] bg-black/60 backdrop-blur-xl border border-white/10 rounded-full pl-3 pr-4 py-1.5 flex items-center gap-2 shadow-2xl pointer-events-none hidden sm:flex">
+        <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
         </span>
-        <span className="text-xs font-semibold text-slate-200 tracking-wide">
-           LIVE SYSTEM
-        </span>
+        <span className="text-[10px] font-semibold text-slate-200 tracking-wide">LIVE SYSTEM</span>
       </div>
       
-      {/* Legend */}
-       <div className="absolute bottom-8 left-8 z-[400] bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl hidden sm:block">
-        <h4 className="text-[10px] font-bold text-slate-500 mb-3 uppercase tracking-widest">Status Legend</h4>
-        <div className="space-y-3">
-            <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></div>
-                <span className="text-xs text-slate-300 font-medium">Critical / Pending</span>
+       <div className="absolute bottom-6 left-6 z-[400] bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-3 shadow-2xl hidden sm:block pointer-events-none">
+        <h4 className="text-[9px] font-bold text-slate-500 mb-2 uppercase tracking-widest">Status Legend</h4>
+        <div className="space-y-2">
+            <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></div>
+                <span className="text-[10px] text-slate-300 font-medium">Critical / Pending</span>
             </div>
-            <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
-                <span className="text-xs text-slate-300 font-medium">Resolved</span>
+            <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
+                <span className="text-[10px] text-slate-300 font-medium">Resolved</span>
             </div>
         </div>
       </div>
