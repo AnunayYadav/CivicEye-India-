@@ -1,0 +1,9 @@
+{
+  "name": "CivicEye India",
+  "description": "A real-time Smart City problem reporting and visualization platform for India, featuring interactive clustering maps and admin analytics.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
