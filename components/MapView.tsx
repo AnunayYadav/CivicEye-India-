@@ -44,10 +44,12 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
       return;
     }
 
-    const key = (import.meta as any).env.VITE_MAPPLS_JS_KEY;
+    // Safely access environment variable to prevent crash if env is undefined
+    const key = (import.meta as any).env?.VITE_MAPPLS_JS_KEY;
     
     if (!key) {
-      setError("Mappls API Key not found in environment variables (VITE_MAPPLS_JS_KEY)");
+      console.warn("VITE_MAPPLS_JS_KEY is missing from import.meta.env");
+      setError("Mappls API Key not found. Please set VITE_MAPPLS_JS_KEY in your .env file.");
       return;
     }
 
