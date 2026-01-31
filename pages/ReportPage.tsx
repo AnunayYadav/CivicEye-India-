@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, MapPin, Loader2, Send, AlertCircle } from 'lucide-react';
+import { Camera, MapPin, Loader2, ChevronRight, AlertCircle, Zap } from 'lucide-react';
 import { ProblemCategory, ProblemStatus } from '../types';
 import { dataStore } from '../services/store';
 
@@ -30,7 +30,7 @@ const ReportPage: React.FC = () => {
         setFormData(prev => ({
           ...prev,
           location: { lat: position.coords.latitude, lng: position.coords.longitude },
-          address: `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`
+          address: `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`
         }));
         setLocationLoading(false);
       },
@@ -43,7 +43,7 @@ const ReportPage: React.FC = () => {
     if (!formData.title) return;
 
     setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate neater loading
 
     const newProblem = {
       id: `usr_${Date.now()}`,
@@ -70,106 +70,122 @@ const ReportPage: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full overflow-y-auto bg-black p-4 md:p-8">
-      <div className="max-w-2xl mx-auto space-y-8">
-        <div className="space-y-2">
-          <h1 className="text-4xl font-bold text-white tracking-tight">New Report</h1>
-          <p className="text-slate-400">Contribute to a smarter India by reporting local issues.</p>
+    <div className="w-full h-full overflow-y-auto bg-black p-4 md:p-8 pb-32">
+      <div className="max-w-xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
+        
+        <div className="mb-8 text-center md:text-left">
+          <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-2">New Report</h1>
+          <p className="text-white/50 text-lg">Help us maintain the city infrastructure.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           
-          {/* Category Grid */}
-          <div className="space-y-3">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Issue Category</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {/* Section: Category */}
+          <div className="bg-zinc-900/40 backdrop-blur-xl border border-white/10 rounded-[32px] p-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {Object.values(ProblemCategory).map((cat) => (
                 <button
                   type="button"
                   key={cat}
                   onClick={() => setFormData({...formData, category: cat})}
-                  className={`p-4 rounded-xl text-sm font-medium transition-all duration-200 border ${
+                  className={`relative p-4 rounded-[24px] text-sm font-medium transition-all duration-300 flex flex-col items-center justify-center text-center gap-2 aspect-square ${
                     formData.category === cat
-                      ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/25'
-                      : 'bg-zinc-900/50 border-white/5 text-slate-400 hover:bg-zinc-800 hover:text-white'
+                      ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20 scale-[1.02]'
+                      : 'bg-transparent text-white/50 hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  {cat}
+                  {formData.category === cat && (
+                    <div className="absolute top-3 right-3 w-2 h-2 bg-white rounded-full shadow-[0_0_8px_white]"></div>
+                  )}
+                  <span className="text-xs uppercase tracking-widest opacity-60">
+                    {cat.split(' ')[0]}
+                  </span>
+                  <span className="font-bold leading-tight">
+                    {cat.split('&')[0].trim()}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Input Fields */}
-          <div className="space-y-5">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subject</label>
-              <input
-                type="text"
-                required
-                className="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                placeholder="Brief title of the problem"
-                value={formData.title}
-                onChange={(e) => setFormData({...formData, title: e.target.value})}
-              />
-            </div>
-            
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Details</label>
-              <textarea
-                required
-                rows={4}
-                className="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all resize-none"
-                placeholder="Describe the situation..."
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-              />
-            </div>
+          {/* Section: Details */}
+          <div className="bg-zinc-900/40 backdrop-blur-xl border border-white/10 rounded-[32px] overflow-hidden">
+             <div className="p-1">
+                <input
+                  type="text"
+                  required
+                  className="w-full bg-transparent text-lg font-medium text-white placeholder-white/20 px-6 py-5 outline-none border-b border-white/5 focus:bg-white/5 transition-colors"
+                  placeholder="What's the issue?"
+                  value={formData.title}
+                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                />
+                <textarea
+                  required
+                  rows={4}
+                  className="w-full bg-transparent text-base text-white/80 placeholder-white/20 px-6 py-5 outline-none resize-none focus:bg-white/5 transition-colors"
+                  placeholder="Provide more details about the situation..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                />
+             </div>
           </div>
 
-          {/* Smart Location */}
-          <div className="p-1 rounded-xl bg-gradient-to-r from-zinc-800 to-black p-[1px]">
-            <div className="bg-zinc-950 rounded-xl p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3 overflow-hidden">
-                <div className={`p-2 rounded-lg ${locationLoading ? 'bg-indigo-500/20' : 'bg-emerald-500/20'}`}>
-                   {locationLoading ? <Loader2 className="animate-spin text-indigo-500" size={18} /> : <MapPin className="text-emerald-500" size={18} />}
+          {/* Section: Location & Photo */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             {/* Location Widget */}
+             <div 
+                onClick={detectLocation}
+                className="bg-zinc-900/40 backdrop-blur-xl border border-white/10 rounded-[32px] p-6 flex flex-col justify-between h-40 cursor-pointer hover:bg-white/5 transition-colors group relative overflow-hidden"
+             >
+                <div className="flex items-start justify-between z-10">
+                   <div className={`p-3 rounded-2xl ${locationLoading ? 'bg-indigo-500/20 text-indigo-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                      {locationLoading ? <Loader2 className="animate-spin" size={20} /> : <MapPin size={20} />}
+                   </div>
+                   <div className="bg-white/10 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Zap size={16} className="text-white" fill="white" />
+                   </div>
                 </div>
-                <div>
-                   <p className="text-xs font-bold text-slate-500 uppercase">GPS Location</p>
-                   <p className="text-sm text-slate-200 truncate font-mono">
-                     {locationLoading ? "Triangulating..." : (formData.address || "Waiting for signal")}
+                <div className="z-10">
+                   <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-1">Location</p>
+                   <p className="text-sm font-medium text-white truncate font-mono">
+                      {locationLoading ? "Triangulating..." : (formData.address || "Tap to detect")}
                    </p>
                 </div>
-              </div>
-              <button 
-                type="button" 
-                onClick={detectLocation}
-                className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white transition-colors"
-              >
-                RETRY
-              </button>
-            </div>
-          </div>
+                {/* Decoration */}
+                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-emerald-500/10 blur-3xl rounded-full"></div>
+             </div>
 
-          {/* Photo Upload */}
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Proof</label>
-             <div className="relative group cursor-pointer">
-               <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl opacity-20 blur transition-opacity group-hover:opacity-30"></div>
-               <div className="relative border border-dashed border-white/20 bg-zinc-900/80 rounded-xl p-8 flex flex-col items-center justify-center text-slate-400 hover:text-white transition-colors">
-                  <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                  <Camera size={28} className="mb-2" />
-                  <span className="text-sm font-medium">Click to capture or upload photo</span>
-               </div>
-            </div>
+             {/* Camera Widget */}
+             <div className="bg-zinc-900/40 backdrop-blur-xl border border-white/10 rounded-[32px] p-6 flex flex-col justify-between h-40 relative overflow-hidden group">
+                <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+                <div className="flex items-start justify-between z-10">
+                   <div className="p-3 rounded-2xl bg-indigo-500/20 text-indigo-400">
+                      <Camera size={20} />
+                   </div>
+                </div>
+                <div className="z-10">
+                   <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-1">Evidence</p>
+                   <p className="text-sm font-medium text-white">Upload Photo</p>
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+             </div>
           </div>
 
           <button
             type="submit"
             disabled={loading || locationLoading}
-            className="w-full bg-white text-black hover:bg-slate-200 font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.2)] flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wide"
+            className="w-full h-16 bg-white text-black font-bold text-lg rounded-[32px] shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed group"
           >
-            {loading ? <Loader2 className="animate-spin" /> : <><Send size={18} /> Submit Report</>}
+            {loading ? (
+               <Loader2 className="animate-spin" />
+            ) : (
+               <>
+                 <span>Submit Report</span>
+                 <div className="bg-black/10 rounded-full p-1 group-hover:translate-x-1 transition-transform">
+                   <ChevronRight size={20} />
+                 </div>
+               </>
+            )}
           </button>
 
         </form>
