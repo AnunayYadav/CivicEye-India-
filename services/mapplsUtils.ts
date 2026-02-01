@@ -7,24 +7,25 @@ declare global {
   }
 }
 
+// Hardcoded Mappls JS Key for development/preview as per user request.
+// Replace with process.env.VITE_MAPPLS_JS_KEY in production deployment.
+const MAPPLS_KEY = "gofqpbsvaasfedvhrekscaglwhttyubickde";
+
 let loadPromise: Promise<void> | null = null;
 
 /**
- * Dynamically loads the Mappls SDK using the key from environment variables.
- * Follows strict Vite + React loading patterns.
+ * Dynamically loads the Mappls SDK using the provided key.
  */
 export const loadMapplsSDK = (): Promise<void> => {
   if (window.mappls) return Promise.resolve();
   if (loadPromise) return loadPromise;
 
   loadPromise = new Promise((resolve, reject) => {
-    // FIX: Using process.env instead of import.meta.env to resolve TypeScript error 'Property env does not exist on type ImportMeta'.
-    // This maintains consistency with how process.env.API_KEY is used throughout the application.
-    const key = process.env.VITE_MAPPLS_JS_KEY;
+    const key = MAPPLS_KEY;
     
     if (!key) {
-      console.error("Mappls JS Key is missing in environment variables (VITE_MAPPLS_JS_KEY)");
-      reject(new Error("VITE_MAPPLS_JS_KEY is missing"));
+      console.error("Mappls JS Key is missing.");
+      reject(new Error("Mappls JS Key is missing"));
       return;
     }
 
