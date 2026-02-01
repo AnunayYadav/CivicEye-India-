@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Problem, ProblemStatus, MapplsSuggestion, ProblemCategory } from '../types';
 import { dataStore } from '../services/store';
 import { INDIA_CENTER, DEFAULT_ZOOM } from '../constants';
-import { Clock, Search, X, LocateFixed, Loader2 } from 'lucide-react';
+import { Clock, Search, X, Locate, Loader2 } from 'lucide-react';
 import { loadMapplsSDK, searchPlaces } from '../services/mapplsUtils';
 
 interface MapViewProps {
@@ -64,7 +64,6 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
         await loadMapplsSDK();
         if (!active) return;
         
-        // Final sanity check for container
         if (!mapContainerRef.current) return;
 
         mapInstance.current = new window.mappls.Map('map', {
@@ -100,7 +99,7 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
       const isResolved = problem.status === ProblemStatus.RESOLVED;
       
       const html = `
-        <div class="custom-marker-wrapper">
+        <div class="custom-marker-wrapper" data-problem-id="${problem.id}">
           ${!isResolved ? `<div class="marker-pulse" style="background: ${color}; opacity: 0.6;"></div>` : ''}
           <div class="marker-base" style="background: ${isResolved ? '#10b981' : 'rgba(0,0,0,0.6)'}; border-color: ${isResolved ? '#059669' : color}; color: ${isResolved ? '#fff' : color};">
             <div class="marker-icon">${getCategoryIconSvg(problem.category)}</div>
@@ -109,7 +108,7 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
         </div>
       `;
 
-      return new window.mappls.Marker({
+      const marker = new window.mappls.Marker({
         position: { lat: problem.location.lat, lng: problem.location.lng },
         html: html,
         width: 36,
@@ -117,6 +116,13 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
         popupHtml: getPopupHtml(problem),
         title: problem.title
       });
+
+      // Add click listener if provided
+      if (onProblemClick) {
+        marker.addListener('click', () => onProblemClick(problem));
+      }
+
+      return marker;
     });
 
     if (markers.length > 0) {
@@ -150,7 +156,6 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
     }
   }, [focusedLocation]);
 
-  // Search Debounce
   useEffect(() => {
     const timer = setTimeout(async () => {
       if (searchQuery.length > 2) {
@@ -215,10 +220,8 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
 
   return (
     <div className="w-full h-full relative bg-black">
-      {/* The required #map div */}
       <div ref={mapContainerRef} id="map" className="w-full h-full" style={{ background: '#000' }}></div>
 
-      {/* Search Interface */}
       <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[90%] md:w-[450px] z-10">
         <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center px-4 py-3 shadow-2xl">
           <Search size={18} className="text-white/40 mr-3" />
@@ -247,12 +250,11 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
         )}
       </div>
 
-      {/* Recenter Button */}
       <button 
         onClick={recenter}
         className="absolute bottom-24 right-6 md:bottom-10 md:right-10 w-12 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-2xl transition-all z-10"
       >
-        <LocateFixed size={20} />
+        <Locate size={20} />
       </button>
 
       {!isLoaded && (
