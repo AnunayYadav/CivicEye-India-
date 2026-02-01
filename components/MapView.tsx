@@ -1,8 +1,9 @@
+
 import React, { useEffect, useRef, useState } from 'react';
-import { Problem, ProblemStatus, MapplsSuggestion } from '../types';
+import { Problem, ProblemStatus, MapplsSuggestion, ProblemCategory } from '../types';
 import { dataStore } from '../services/store';
 import { INDIA_CENTER, DEFAULT_ZOOM } from '../constants';
-import { Clock, Search, X } from 'lucide-react';
+import { Clock, Search, X, LocateFixed, Loader2 } from 'lucide-react';
 import { loadMapplsSDK, searchPlaces } from '../services/mapplsUtils';
 
 interface MapViewProps {
@@ -10,284 +11,261 @@ interface MapViewProps {
   focusedLocation?: { lat: number; lng: number } | null;
 }
 
+const getCategoryColor = (category: ProblemCategory): string => {
+  switch (category) {
+    case ProblemCategory.ROADS: return '#f97316';
+    case ProblemCategory.GARBAGE: return '#eab308';
+    case ProblemCategory.ELECTRICITY: return '#a855f7';
+    case ProblemCategory.WATER: return '#3b82f6';
+    case ProblemCategory.TRAFFIC: return '#ef4444';
+    case ProblemCategory.OTHER: return '#9ca3af';
+    default: return '#9ca3af';
+  }
+};
+
+const getCategoryIconSvg = (category: ProblemCategory): string => {
+  const props = 'width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"';
+  switch (category) {
+    case ProblemCategory.ROADS: return `<svg ${props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`;
+    case ProblemCategory.GARBAGE: return `<svg ${props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>`;
+    case ProblemCategory.ELECTRICITY: return `<svg ${props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`;
+    case ProblemCategory.WATER: return `<svg ${props}><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>`;
+    case ProblemCategory.TRAFFIC: return `<svg ${props}><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3"/><circle cx="7" cy="15" r="1"/><circle cx="17" cy="15" r="1"/></svg>`;
+    default: return `<svg ${props}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+  }
+};
+
 const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) => {
-  const mapRef = useRef<HTMLDivElement>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const clusterLayer = useRef<any>(null);
-  const [problems, setProblems] = useState<Problem[]>([]);
-  const [isMapLoaded, setIsMapLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   
-  // Search State
+  const [problems, setProblems] = useState<Problem[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<MapplsSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // 1. Fetch Problems
+  // Sync with data store
   useEffect(() => {
-    const fetchProblems = () => {
-      setProblems(dataStore.getProblems());
-    };
-    fetchProblems();
-    dataStore.addEventListener('updated', fetchProblems);
-    return () => {
-      dataStore.removeEventListener('updated', fetchProblems);
-    };
+    setProblems(dataStore.getProblems());
+    const handleUpdate = () => setProblems(dataStore.getProblems());
+    dataStore.addEventListener('updated', handleUpdate);
+    return () => dataStore.removeEventListener('updated', handleUpdate);
   }, []);
 
-  // 2. Load Mappls SDK
+  // Initialize Map
   useEffect(() => {
-    loadMapplsSDK()
-      .then(() => setIsMapLoaded(true))
-      .catch((err) => setError(err.message || "Error loading maps"));
-  }, []);
+    let active = true;
+    
+    const init = async () => {
+      try {
+        await loadMapplsSDK();
+        if (!active) return;
+        
+        // Final sanity check for container
+        if (!mapContainerRef.current) return;
 
-  // 3. Initialize Map
-  useEffect(() => {
-    if (!isMapLoaded || !mapRef.current || mapInstance.current) return;
-
-    try {
-        mapInstance.current = new window.mappls.Map(mapRef.current, {
-            center: [INDIA_CENTER.lat, INDIA_CENTER.lng],
-            zoom: DEFAULT_ZOOM,
-            location: true,
-            clickableIcons: false,
+        mapInstance.current = new window.mappls.Map('map', {
+          center: [INDIA_CENTER.lat, INDIA_CENTER.lng],
+          zoom: DEFAULT_ZOOM,
+          location: true,
+          clickableIcons: false,
         });
 
         mapInstance.current.addListener('load', () => {
-             renderMarkers();
+          setIsLoaded(true);
+          renderMarkers();
         });
+      } catch (err: any) {
+        if (active) setError(err.message || "Failed to initialize map");
+      }
+    };
 
-    } catch (e) {
-        console.error("Map init error:", e);
+    init();
+    return () => { active = false; };
+  }, []);
+
+  // Render Markers and Clusters
+  const renderMarkers = () => {
+    if (!mapInstance.current || !window.mappls) return;
+
+    if (clusterLayer.current) {
+      try { mapInstance.current.removeLayer(clusterLayer.current); } catch(e) {}
     }
-  }, [isMapLoaded]);
 
-  // 4. Handle Markers & Clustering
+    const markers = problems.map(problem => {
+      const color = getCategoryColor(problem.category);
+      const isResolved = problem.status === ProblemStatus.RESOLVED;
+      
+      const html = `
+        <div class="custom-marker-wrapper">
+          ${!isResolved ? `<div class="marker-pulse" style="background: ${color}; opacity: 0.6;"></div>` : ''}
+          <div class="marker-base" style="background: ${isResolved ? '#10b981' : 'rgba(0,0,0,0.6)'}; border-color: ${isResolved ? '#059669' : color}; color: ${isResolved ? '#fff' : color};">
+            <div class="marker-icon">${getCategoryIconSvg(problem.category)}</div>
+          </div>
+          ${isResolved ? '<div class="status-badge">✓</div>' : ''}
+        </div>
+      `;
+
+      return new window.mappls.Marker({
+        position: { lat: problem.location.lat, lng: problem.location.lng },
+        html: html,
+        width: 36,
+        height: 36,
+        popupHtml: getPopupHtml(problem),
+        title: problem.title
+      });
+    });
+
+    if (markers.length > 0) {
+      try {
+        clusterLayer.current = new window.mappls.MarkerCluster({
+          map: mapInstance.current,
+          markers: markers,
+          iconTheme: 'custom',
+          iconCreateFunction: (cluster: any) => {
+            const count = cluster.getChildCount();
+            return `<div class="custom-cluster-icon" style="width:40px; height:40px;">${count}</div>`;
+          }
+        });
+      } catch (e) {
+        markers.forEach(m => mapInstance.current.addLayer(m));
+      }
+    }
+  };
+
   useEffect(() => {
-      if (!mapInstance.current) return;
-      renderMarkers();
-  }, [problems]);
+    if (isLoaded) renderMarkers();
+  }, [problems, isLoaded]);
 
-  // 5. Handle Focus Location
   useEffect(() => {
     if (mapInstance.current && focusedLocation) {
-        mapInstance.current.flyTo({
-            center: [focusedLocation.lat, focusedLocation.lng],
-            zoom: 16,
-            essential: true
-        });
+      mapInstance.current.flyTo({
+        center: [focusedLocation.lat, focusedLocation.lng],
+        zoom: 16,
+        essential: true
+      });
     }
   }, [focusedLocation]);
 
-  // 6. Popup Event Listener
+  // Search Debounce
   useEffect(() => {
-    const handlePopupClick = (e: MouseEvent) => {
-        const target = e.target as HTMLElement;
-        const btn = target.closest('.view-problem-btn');
-        if (btn && btn.hasAttribute('data-problem-id')) {
-            e.preventDefault();
-            const problemId = btn.getAttribute('data-problem-id');
-            if (problemId) {
-                const problem = dataStore.getProblemById(problemId);
-                if (problem && onProblemClick) onProblemClick(problem);
-            }
-        }
-    };
-    const mapContainer = mapRef.current;
-    if (mapContainer) mapContainer.addEventListener('click', handlePopupClick);
-    return () => {
-        if (mapContainer) mapContainer.removeEventListener('click', handlePopupClick);
-    };
-  }, [onProblemClick]);
-
-  // Search Logic
-  useEffect(() => {
-      const delayDebounceFn = setTimeout(async () => {
-        if (searchQuery.length > 2) {
-            const results = await searchPlaces(searchQuery);
-            setSuggestions(results);
-            setShowSuggestions(true);
-        } else {
-            setSuggestions([]);
-            setShowSuggestions(false);
-        }
-      }, 300);
-
-      return () => clearTimeout(delayDebounceFn);
+    const timer = setTimeout(async () => {
+      if (searchQuery.length > 2) {
+        const res = await searchPlaces(searchQuery);
+        setSuggestions(res);
+        setShowSuggestions(true);
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const handleSearchSelect = (s: MapplsSuggestion) => {
-      setSearchQuery(s.placeName);
-      setShowSuggestions(false);
-      if (s.latitude && s.longitude && mapInstance.current) {
-          mapInstance.current.flyTo({
-              center: [s.latitude, s.longitude],
-              zoom: 16
-          });
-          // Add temporary marker
-          new window.mappls.Marker({
-              map: mapInstance.current,
-              position: { lat: s.latitude, lng: s.longitude },
-              title: s.placeName
-          });
-      }
-  };
-
-  const renderMarkers = () => {
-      if (!mapInstance.current || !window.mappls) return;
-
-      if (clusterLayer.current) {
-          try { mapInstance.current.removeLayer(clusterLayer.current); } catch(e) {}
-          clusterLayer.current = null;
-      }
-      
-      const mapplsMarkers = problems.map(problem => {
-          let color = '#ef4444';
-          if (problem.status === ProblemStatus.RESOLVED) color = '#10b981';
-          if (problem.status === ProblemStatus.IN_PROGRESS) color = '#f59e0b';
-
-          const html = `
-            <div class="marker-container" style="cursor: pointer;">
-                <div class="marker-glow" style="background-color: ${color}; box-shadow: 0 0 10px ${color};"></div>
-            </div>
-          `;
-
-          return new window.mappls.Marker({
-              position: { lat: problem.location.lat, lng: problem.location.lng },
-              html: html,
-              width: 20,
-              height: 20,
-              popupHtml: getPopupHtml(problem),
-              title: problem.title
-          });
-      });
-
-      if (mapplsMarkers.length > 0) {
-          try {
-            clusterLayer.current = new window.mappls.MarkerCluster({
-                map: mapInstance.current,
-                markers: mapplsMarkers,
-                iconTheme: 'custom', 
-                iconCreateFunction: (cluster: any) => {
-                    const count = cluster.getChildCount();
-                    return `<div class="custom-cluster-icon" style="width:40px; height:40px;">${count}</div>`;
-                }
-            });
-          } catch (e) {
-              mapplsMarkers.forEach(m => mapInstance.current.addLayer(m));
-          }
-      }
+  const handleSuggestionSelect = (s: MapplsSuggestion) => {
+    setSearchQuery(s.placeName);
+    setShowSuggestions(false);
+    if (s.latitude && s.longitude && mapInstance.current) {
+      mapInstance.current.flyTo({ center: [s.latitude, s.longitude], zoom: 16 });
+    }
   };
 
   const getPopupHtml = (problem: Problem) => {
-      const dateStr = new Date(problem.createdAt).toLocaleDateString();
-      const statusDisplay = problem.status.replace('_', ' ');
-
-      return `
-        <div class="min-w-[200px] font-sans">
-            <div class="relative h-32 w-full mb-3 overflow-hidden rounded-t-xl bg-zinc-800">
-                <img src="${problem.imageUrl}" style="width:100%; height:100%; object-fit:cover;" />
-                <div style="position:absolute; top:8px; right:8px; padding:4px 8px; border-radius:99px; font-size:10px; font-weight:bold; background:rgba(0,0,0,0.8); color:white; border:1px solid rgba(255,255,255,0.1); text-transform:uppercase;">
-                    ${statusDisplay}
-                </div>
-            </div>
-            <div style="padding: 12px;">
-                <h3 style="font-weight:bold; color:#f1f5f9; font-size:14px; margin-bottom:4px; line-height:1.2;">${problem.title}</h3>
-                <p style="font-size:12px; color:#94a3b8; margin-bottom:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${problem.description}</p>
-                
-                <div style="display:flex; align-items:center; justify-content:space-between; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1);">
-                    <span style="font-size:10px; color:#64748b;">${dateStr}</span>
-                    <button class="view-problem-btn" data-problem-id="${problem.id}" style="background:#4f46e5; color:white; font-size:10px; font-weight:bold; padding:6px 12px; border-radius:6px; border:none; cursor:pointer;">VIEW</button>
-                </div>
-            </div>
+    const statusColor = problem.status === ProblemStatus.RESOLVED ? '#10b981' : '#ef4444';
+    return `
+      <div style="width: 240px; border-radius: 16px; overflow: hidden; background: #18181b;">
+        <img src="${problem.imageUrl}" style="width: 100%; height: 120px; object-fit: cover;" />
+        <div style="padding: 12px;">
+          <h3 style="color: white; font-size: 14px; font-weight: 700; margin: 0 0 4px 0;">${problem.title}</h3>
+          <p style="color: #a1a1aa; font-size: 11px; margin: 0 0 12px 0;">${problem.description.substring(0, 60)}...</p>
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+             <span style="font-size: 9px; font-weight: 800; color: ${statusColor}; text-transform: uppercase;">${problem.status}</span>
+             <button class="view-problem-btn" data-problem-id="${problem.id}" style="background: #4f46e5; color: white; border: none; padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer;">VIEW DETAILS</button>
+          </div>
         </div>
-      `;
+      </div>
+    `;
+  };
+
+  const recenter = () => {
+    if (navigator.geolocation && mapInstance.current) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        mapInstance.current.flyTo({
+          center: [pos.coords.latitude, pos.coords.longitude],
+          zoom: 15
+        });
+      });
+    }
   };
 
   if (error) {
-      return (
-          <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center text-red-400 p-8 text-center">
-              <p className="font-bold text-lg mb-2">Map Error</p>
-              <p className="text-sm text-slate-500 font-mono">{error}</p>
-              <p className="text-xs text-slate-600 mt-4">Check VITE_MAPPLS_JS_KEY in .env</p>
-          </div>
-      );
+    return (
+      <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center p-8 text-center">
+        <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center text-red-500 mb-4">
+          <X size={32} />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">GIS Subsystem Error</h2>
+        <p className="text-white/50 text-sm max-w-xs">{error}</p>
+      </div>
+    );
   }
 
   return (
     <div className="w-full h-full relative bg-black">
-      <div ref={mapRef} id="map" className="w-full h-full z-0" style={{ background: '#000' }}></div>
+      {/* The required #map div */}
+      <div ref={mapContainerRef} id="map" className="w-full h-full" style={{ background: '#000' }}></div>
 
-      {/* Map Search Bar */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 w-[90%] md:w-[400px] z-[400]">
-          <div className="relative group">
-              <div className="absolute inset-0 bg-white/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative flex items-center bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-full px-4 py-2.5 shadow-2xl">
-                  <Search size={16} className="text-white/50 mr-3" />
-                  <input 
-                    type="text" 
-                    placeholder="Search city, area, or landmark..." 
-                    className="bg-transparent border-none outline-none text-white text-sm w-full placeholder-white/30"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                  {searchQuery && (
-                      <button onClick={() => setSearchQuery('')} className="text-white/40 hover:text-white">
-                          <X size={14} />
-                      </button>
-                  )}
-              </div>
-              
-              {/* Autosuggest Dropdown */}
-              {showSuggestions && suggestions.length > 0 && (
-                  <div className="absolute top-full mt-2 w-full bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
-                      {suggestions.map((s, i) => (
-                          <div 
-                            key={i} 
-                            onClick={() => handleSearchSelect(s)}
-                            className="px-4 py-3 hover:bg-white/10 cursor-pointer border-b border-white/5 last:border-none flex flex-col"
-                          >
-                              <span className="text-sm font-bold text-white">{s.placeName}</span>
-                              <span className="text-xs text-white/50 truncate">{s.placeAddress}</span>
-                          </div>
-                      ))}
-                  </div>
-              )}
-          </div>
-      </div>
-
-      {!isMapLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black z-50">
-              <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-xs font-bold text-indigo-500 tracking-widest animate-pulse">LOADING MAPPLS...</p>
-              </div>
-          </div>
-      )}
-
-      {/* Legend & Status Badges */}
-      <div className="absolute top-4 right-4 z-[400] bg-black/60 backdrop-blur-xl border border-white/10 rounded-full pl-3 pr-4 py-1.5 flex items-center gap-2 shadow-2xl pointer-events-none hidden sm:flex">
-        <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-        </span>
-        <span className="text-[10px] font-semibold text-slate-200 tracking-wide">LIVE SYSTEM</span>
-      </div>
-      
-       <div className="absolute bottom-6 left-6 z-[400] bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-3 shadow-2xl hidden sm:block pointer-events-none">
-        <h4 className="text-[9px] font-bold text-slate-500 mb-2 uppercase tracking-widest">Status Legend</h4>
-        <div className="space-y-2">
-            <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></div>
-                <span className="text-[10px] text-slate-300 font-medium">Critical / Pending</span>
-            </div>
-            <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
-                <span className="text-[10px] text-slate-300 font-medium">Resolved</span>
-            </div>
+      {/* Search Interface */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[90%] md:w-[450px] z-10">
+        <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center px-4 py-3 shadow-2xl">
+          <Search size={18} className="text-white/40 mr-3" />
+          <input 
+            type="text" 
+            placeholder="Search location..."
+            className="bg-transparent border-none outline-none text-white text-sm w-full placeholder-white/20"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
+        
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="mt-2 bg-zinc-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
+            {suggestions.map((s, i) => (
+              <div 
+                key={i} 
+                onClick={() => handleSuggestionSelect(s)}
+                className="px-4 py-3 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-none"
+              >
+                <div className="text-sm font-bold text-white">{s.placeName}</div>
+                <div className="text-[10px] text-white/40 truncate">{s.placeAddress}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Recenter Button */}
+      <button 
+        onClick={recenter}
+        className="absolute bottom-24 right-6 md:bottom-10 md:right-10 w-12 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-2xl transition-all z-10"
+      >
+        <LocateFixed size={20} />
+      </button>
+
+      {!isLoaded && (
+        <div className="absolute inset-0 bg-black flex flex-col items-center justify-center z-50">
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping"></div>
+            </div>
+          </div>
+          <p className="mt-4 text-[10px] font-bold text-indigo-400 tracking-[0.2em] uppercase">Initializing Mappls GIS</p>
+        </div>
+      )}
     </div>
   );
 };
