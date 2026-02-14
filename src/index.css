@@ -4,17 +4,18 @@
 
 @layer base {
   body {
-    @apply bg-black text-white;
+    @apply bg-[#030303] text-white;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
+    font-family: 'Outfit', sans-serif;
   }
 
   /* Compact Scrollbars */
   ::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
+    width: 3px;
+    height: 3px;
   }
 
   ::-webkit-scrollbar-track {
@@ -22,17 +23,30 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.08);
     border-radius: 10px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.15);
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-white/[0.03] backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-2xl;
   }
 
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.05) transparent;
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-[1.5rem] shadow-xl hover:bg-white/[0.07] transition-all duration-300;
+  }
+
+  .glass-button {
+    @apply bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-6 py-3 font-bold text-xs uppercase tracking-widest hover:bg-white hover:text-black transition-all duration-300 active:scale-95;
+  }
+
+  .glass-input {
+    @apply bg-white/[0.02] border border-white/10 rounded-2xl px-4 py-3 text-sm focus:bg-white/[0.05] focus:border-indigo-500/50 outline-none transition-all;
   }
 }
 
@@ -49,12 +63,12 @@
 .marker-base {
   width: 100%;
   height: 100%;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(4px);
-  border: 1.5px solid;
+  backdrop-filter: blur(8px);
+  border: 1px solid;
 }
 
 .marker-pulse {
@@ -64,7 +78,7 @@
   transform: translate(-50%, -50%);
   width: 100%;
   height: 100%;
-  border-radius: 6px;
+  border-radius: 8px;
   animation: pulse-ring 3s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
   z-index: -1;
 }
@@ -76,28 +90,33 @@
   }
 
   100% {
-    transform: translate(-50%, -50%) scale(2);
+    transform: translate(-50%, -50%) scale(2.2);
     opacity: 0;
   }
 }
 
 /* Leaflet Overrides */
 .leaflet-container {
-  background: #000 !important;
+  background: #050505 !important;
 }
 
-.leaflet-popup-content-wrapper {
+.premium-map-popup .leaflet-popup-content-wrapper {
   background: transparent !important;
   box-shadow: none !important;
   padding: 0 !important;
 }
 
-.leaflet-popup-tip-container {
-  display: none !important;
+.premium-map-popup .leaflet-popup-tip {
+  background: rgba(5, 5, 5, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Global Transitions */
 a,
 button {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-white via-white/80 to-white/60;
 }

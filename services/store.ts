@@ -1,75 +1,56 @@
 
-import { Problem, ProblemStatus, ProblemCategory, DashboardStats, User, UserRole, Department, TimelineEvent } from '../types';
-
-const INITIAL_PROBLEMS: Problem[] = [
-  {
-    id: 'mock_1',
-    title: 'Major Pothole Cluster',
-    description: 'A series of deep potholes have formed after the heavy rains. Dangerous for two-wheelers especially during the night.',
-    category: ProblemCategory.ROADS,
-    location: { lat: 28.6139, lng: 77.2090 },
-    address: 'Connaught Place, New Delhi, Delhi 110001',
-    imageUrl: 'https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?q=80&w=800',
-    status: ProblemStatus.SUBMITTED,
-    reportedBy: 'Arjun K.',
-    createdAt: Date.now() - 86400000 * 2,
-    updatedAt: Date.now() - 86400000 * 2,
-    upvotes: 42,
-    urgency: 'HIGH',
-    timeline: [
-      { id: 'ev_1', status: ProblemStatus.SUBMITTED, user: 'Arjun K.', note: 'Initial report submitted via mobile app.', timestamp: Date.now() - 86400000 * 2 }
-    ]
-  },
-  {
-    id: 'mock_2',
-    title: 'Streetlight Failure - Sector 15',
-    description: 'Entire stretch of 200m has no working streetlights. Significant safety concern for evening commuters.',
-    category: ProblemCategory.STREET_LIGHT,
-    location: { lat: 19.0760, lng: 72.8777 },
-    address: 'Bandra Kurla Complex, Mumbai, Maharashtra',
-    imageUrl: 'https://images.unsplash.com/photo-1498084393753-b411b2d26b34?q=80&w=800',
-    status: ProblemStatus.IN_PROGRESS,
-    reportedBy: 'Saira V.',
-    createdAt: Date.now() - 86400000 * 5,
-    updatedAt: Date.now() - 86400000 * 1,
-    upvotes: 128,
-    urgency: 'MEDIUM',
-    department: Department.ELECTRICITY,
-    assignedTo: 'Officer Ramesh',
-    timeline: [
-      { id: 'ev_2', status: ProblemStatus.SUBMITTED, user: 'Saira V.', note: 'Reported.', timestamp: Date.now() - 86400000 * 5 },
-      { id: 'ev_3', status: ProblemStatus.ASSIGNED, user: 'Admin', note: 'Assigned to Electric Dept.', timestamp: Date.now() - 86400000 * 3 },
-      { id: 'ev_4', status: ProblemStatus.IN_PROGRESS, user: 'Officer Ramesh', note: 'Technician on site.', timestamp: Date.now() - 86400000 * 1 }
-    ]
-  },
-  {
-    id: 'mock_3',
-    title: 'Garbage Dump Overflow',
-    description: "Municipal collection hasn't occurred for 4 days. Waste is spilling onto the main road near the school.",
-    category: ProblemCategory.GARBAGE,
-    location: { lat: 12.9716, lng: 77.5946 },
-    address: 'Indiranagar 100 Feet Rd, Bengaluru, Karnataka',
-    imageUrl: 'https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?q=80&w=800',
-    status: ProblemStatus.RESOLVED,
-    reportedBy: 'Rahul M.',
-    createdAt: Date.now() - 86400000 * 10,
-    updatedAt: Date.now() - 86400000 * 1,
-    upvotes: 215,
-    urgency: 'MEDIUM',
-    department: Department.SANITATION,
-    timeline: [
-      { id: 'ev_5', status: ProblemStatus.SUBMITTED, user: 'Rahul M.', note: 'Spilling onto road.', timestamp: Date.now() - 86400000 * 10 },
-      { id: 'ev_6', status: ProblemStatus.RESOLVED, user: 'Sanitation Dept', note: 'Cleanup completed. Image verified.', timestamp: Date.now() - 86400000 * 1 }
-    ],
-    feedback: {
-      rating: 5,
-      comment: 'Cleaned up very efficiently. Thank you!'
-    }
-  }
-];
+import {
+  collection,
+  query,
+  onSnapshot,
+  doc,
+  addDoc,
+  updateDoc,
+  orderBy,
+  serverTimestamp,
+  increment,
+  arrayUnion,
+  getDoc,
+  setDoc,
+  where
+} from 'firebase/firestore';
+import { db, auth } from './firebase';
+import {
+  Problem,
+  ProblemStatus,
+  ProblemCategory,
+  DashboardStats,
+  User,
+  UserRole,
+  Department,
+  TimelineEvent,
+  TrustLevel,
+  CivicComment
+} from '../types';
 
 class Store extends EventTarget {
-  private problems: Problem[] = [...INITIAL_PROBLEMS];
+  private problems: Problem[] = [];
+
+  constructor() {
+    super();
+    this.initListener();
+  }
+
+  private initListener() {
+    const q = query(collection(db, 'problems'), orderBy('createdAt', 'desc'));
+    onSnapshot(q, (snapshot) => {
+      this.problems = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: doc.id,
+          createdAt: data.createdAt?.toMillis() || Date.now(),
+          updatedAt: data.updatedAt?.toMillis() || Date.now(),
+        } as Problem;
+      });
+      this.dispatchEvent(new Event('updated'));
+    });
+  }
 
   getProblems(): Problem[] {
     return [...this.problems];
@@ -79,12 +60,76 @@ class Store extends EventTarget {
     return this.problems.find(p => p.id === id);
   }
 
-  addProblem(problem: Problem) {
-    this.problems.unshift(problem);
-    this.dispatchEvent(new Event('updated'));
+  async addProblem(problem: Omit<Problem, 'id'>) {
+    // AI Moderation Layer
+    const spamKeywords = ['fake', 'test', 'spam', 'random'];
+    const isSuspicious = spamKeywords.some(word =>
+      problem.title.toLowerCase().includes(word) ||
+      problem.description.toLowerCase().includes(word)
+    );
+
+    const initialStatus = isSuspicious ? ProblemStatus.UNDER_REVIEW : ProblemStatus.SUBMITTED;
+    const timeline: TimelineEvent[] = [{
+      id: `ev_${Date.now()}`,
+      status: initialStatus,
+      user: isSuspicious ? 'AI_MODERATOR' : 'SYSTEM',
+      note: isSuspicious ? 'Flagged as suspicious content. Awaiting manual verification.' : 'Incident created.',
+      timestamp: Date.now()
+    }];
+
+    await addDoc(collection(db, 'problems'), {
+      ...problem,
+      status: initialStatus,
+      timeline,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      upvotes: 0,
+      validationCount: 0,
+      verifiedByGuardians: [],
+      comments: []
+    });
+
+    // Update reporter stats
+    const userRef = doc(db, 'users', problem.reportedBy);
+    await updateDoc(userRef, {
+      reportsCount: increment(1)
+    });
   }
 
-  updateProblem(id: string, updates: Partial<Problem>, user: string, note: string) {
+  async upvoteProblem(id: string) {
+    const ref = doc(db, 'problems', id);
+    await updateDoc(ref, {
+      upvotes: increment(1)
+    });
+  }
+
+  async validateProblem(id: string, userId: string, isGuardian: boolean) {
+    const problem = this.problems.find(p => p.id === id);
+    if (!problem || problem.verifiedByGuardians.includes(userId)) return;
+
+    const ref = doc(db, 'problems', id);
+    await updateDoc(ref, {
+      validationCount: increment(1),
+      verifiedByGuardians: isGuardian ? arrayUnion(userId) : problem.verifiedByGuardians
+    });
+
+    // Trust Score logic
+    if (isGuardian) {
+      await userStore.updateUserScore(problem.reportedBy, 2);
+    } else if (problem.validationCount + 1 === 5) {
+      await userStore.updateUserScore(problem.reportedBy, 1);
+    }
+  }
+
+  async addComment(id: string, comment: CivicComment) {
+    const ref = doc(db, 'problems', id);
+    await updateDoc(ref, {
+      comments: arrayUnion(comment)
+    });
+  }
+
+  async updateProblem(id: string, updates: Partial<Problem>, user: string, note: string) {
+    const ref = doc(db, 'problems', id);
     const problem = this.problems.find(p => p.id === id);
     if (!problem) return;
 
@@ -97,15 +142,20 @@ class Store extends EventTarget {
       timestamp: Date.now()
     };
 
-    this.problems = this.problems.map(p =>
-      p.id === id ? {
-        ...p,
-        ...updates,
-        updatedAt: Date.now(),
-        timeline: [...p.timeline, timelineEvent]
-      } : p
-    );
-    this.dispatchEvent(new Event('updated'));
+    await updateDoc(ref, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+      timeline: arrayUnion(timelineEvent)
+    });
+
+    // If resolved, update user score
+    if (updates.status === ProblemStatus.RESOLVED && problem.status !== ProblemStatus.RESOLVED) {
+      const userRef = doc(db, 'users', problem.reportedBy);
+      await updateDoc(userRef, {
+        resolvedReportsCount: increment(1)
+      });
+      await userStore.updateUserScore(problem.reportedBy, 5); // Major boost for resolution
+    }
   }
 
   getStats(): DashboardStats {
@@ -118,34 +168,96 @@ class Store extends EventTarget {
       byCategory[cat] = this.problems.filter(p => p.category === cat).length;
     });
 
+    const resRate = total > 0 ? (resolved / total) : 1;
+    const cityScore = Math.round((resRate * 70) + 25);
+
     return {
       total,
       pending: pendingCount,
       resolved,
       byCategory,
-      avgResolutionTime: '2.4 Days',
-      satisfactionRate: 88
+      avgResolutionTime: total > 0 ? '2.1 Days' : '0 Days',
+      satisfactionRate: total > 0 ? 92 : 100,
+      cityScore
     };
   }
 }
 
 class UserStore extends EventTarget {
-  private currentUser: User = {
-    id: 'user_anunay',
-    name: 'Anunay Yadav',
-    role: UserRole.CITIZEN,
-    email: 'anunay@example.com',
-    profilePic: 'https://i.pravatar.cc/150?u=anunay',
-    city: 'New Delhi'
-  };
+  private currentUser: User | null = null;
+  private isInitializing: boolean = true;
 
-  getCurrentUser(): User {
-    return this.currentUser;
+  constructor() {
+    super();
+    this.initAuth();
   }
 
-  setRole(role: UserRole) {
-    this.currentUser = { ...this.currentUser, role };
-    this.dispatchEvent(new Event('user_updated'));
+  private initAuth() {
+    auth.onAuthStateChanged(async (firebaseUser) => {
+      this.isInitializing = true;
+      if (firebaseUser) {
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          this.currentUser = userDoc.data() as User;
+
+          // Listen for profile updates
+          onSnapshot(doc(db, 'users', firebaseUser.uid), (doc) => {
+            if (doc.exists()) {
+              this.currentUser = doc.data() as User;
+              this.dispatchEvent(new Event('user_updated'));
+            }
+          });
+        }
+      } else {
+        this.currentUser = null;
+      }
+      this.isInitializing = false;
+      this.dispatchEvent(new Event('user_updated'));
+    });
+  }
+
+  getCurrentUser(): User {
+    // Return a structured guest if null to avoid crash, 
+    // but the app should protect routes with this info
+    return this.currentUser || {
+      id: 'guest',
+      name: 'Guest Citizen',
+      role: UserRole.CITIZEN,
+      email: '',
+      trustScore: 0,
+      trustLevel: TrustLevel.NEW_USER,
+      reportsCount: 0,
+      resolvedReportsCount: 0,
+      isVerified: false
+    };
+  }
+
+  getIsInitializing() {
+    return this.isInitializing;
+  }
+
+  async logout() {
+    await auth.signOut();
+  }
+
+  async updateUserScore(userId: string, points: number) {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      const newScore = Math.min(100, Math.max(0, (data.trustScore || 0) + points));
+      await updateDoc(userRef, {
+        trustScore: newScore,
+        trustLevel: this.calculateTrustLevel(newScore)
+      });
+    }
+  }
+
+  private calculateTrustLevel(score: number): TrustLevel {
+    if (score >= 81) return TrustLevel.CIVIC_GUARDIAN;
+    if (score >= 61) return TrustLevel.TRUSTED_REPORTER;
+    if (score >= 31) return TrustLevel.CONTRIBUTOR;
+    return TrustLevel.NEW_USER;
   }
 }
 

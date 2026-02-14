@@ -43,12 +43,27 @@ export interface Coordinates {
   lng: number;
 }
 
+export interface CivicComment {
+  id: string;
+  userId: string;
+  userName: string;
+  text: string;
+  timestamp: number;
+}
+
 export interface TimelineEvent {
   id: string;
   status: ProblemStatus;
   user: string;
   note: string;
   timestamp: number;
+}
+
+export enum TrustLevel {
+  NEW_USER = 'New User',
+  CONTRIBUTOR = 'Contributor',
+  TRUSTED_REPORTER = 'Trusted Reporter',
+  CIVIC_GUARDIAN = 'Civic Guardian'
 }
 
 export interface Problem {
@@ -61,6 +76,7 @@ export interface Problem {
   imageUrl: string;
   status: ProblemStatus;
   reportedBy: string;
+  reporterTrustScore?: number;
   createdAt: number;
   updatedAt: number;
   upvotes: number;
@@ -69,6 +85,9 @@ export interface Problem {
   assignedTo?: string;
   timeline: TimelineEvent[];
   resolutionImage?: string;
+  validationCount: number;
+  verifiedByGuardians: string[]; // User IDs
+  comments: CivicComment[];
   feedback?: {
     rating: number;
     comment: string;
@@ -82,6 +101,11 @@ export interface User {
   email: string;
   profilePic?: string;
   city?: string;
+  trustScore: number;
+  trustLevel: TrustLevel;
+  reportsCount: number;
+  resolvedReportsCount: number;
+  isVerified: boolean;
 }
 
 export interface DashboardStats {
@@ -91,6 +115,7 @@ export interface DashboardStats {
   byCategory: Record<string, number>;
   avgResolutionTime: string;
   satisfactionRate: number;
+  cityScore: number;
 }
 
 export interface MapplsSuggestion {

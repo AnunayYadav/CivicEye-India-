@@ -28,6 +28,10 @@
   },
   "include": [
     "src",
+    "pages",
+    "services",
+    "components",
+    "App.tsx",
     "vite-env.d.ts",
     "vite.config.ts"
   ]
