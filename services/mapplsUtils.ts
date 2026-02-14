@@ -30,30 +30,38 @@ export const loadMapplsSDK = (): Promise<void> => {
         }
 
         const script = document.createElement('script');
-        // Using apis.mappls.com which was more successful in initial loads
-        script.src = `https://apis.mappls.com/advancedmaps/api/${key}/map_sdk?layer=vector&v=3.0`;
+        // Using the EXACT URL from the documentation provided in the latest turn
+        script.src = `https://sdk.mappls.com/map/sdk/web?v=3.0&access_token=${key}`;
         script.async = true;
         script.defer = true;
 
+        // Sometimes required for sensitive script loading
+        script.crossOrigin = "anonymous";
+
         script.onload = () => {
+            console.log("Mappls SDK Core Loaded successfully");
+
+            // Try loading plugins as well using the same token-based format
             const plugins = document.createElement('script');
-            plugins.src = `https://apis.mappls.com/advancedmaps/api/${key}/map_sdk_plugins?v=3.0`;
+            plugins.src = `https://sdk.mappls.com/map/sdk/plugins?v=3.0&access_token=${key}`;
             plugins.async = true;
-            plugins.defer = true;
             plugins.onload = () => {
-                console.log("Mappls SDK & Plugins Loaded Successfully");
+                console.log("Mappls Plugins Loaded Successfully");
                 resolve();
             };
             plugins.onerror = () => {
-                console.warn("Mappls Plugins failed to load, falling back to core SDK");
+                console.warn("Mappls Plugins failed to load, continuing with core Map");
                 resolve();
             };
             document.head.appendChild(plugins);
         };
+
         script.onerror = () => {
             const maskedKey = key.substring(0, 5) + "..." + key.substring(key.length - 3);
-            reject(new Error(`Failed to load Mappls SDK script (Key: ${maskedKey}). Check your Mappls Dashboard whitelisting.`));
+            console.error(`Failed to load script: ${script.src}`);
+            reject(new Error(`Failed to load Mappls SDK script (Key: ${maskedKey}). This is likely a CORS/Whitelisting issue at sdk.mappls.com.`));
         };
+
         document.head.appendChild(script);
     });
 
