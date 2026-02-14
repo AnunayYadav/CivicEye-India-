@@ -1,10 +1,12 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import { Problem, ProblemStatus, MapplsSuggestion, ProblemCategory } from '../types';
 import { dataStore } from '../services/store';
 import { INDIA_CENTER, DEFAULT_ZOOM } from '../constants';
 import { Clock, Search, X, Locate, Loader2 } from 'lucide-react';
-import { loadMapplsSDK, searchPlaces } from '../services/mapplsUtils';
+import { searchPlaces } from '../services/mapUtils';
 
 interface MapViewProps {
   onProblemClick?: (problem: Problem) => void;
@@ -35,133 +37,31 @@ const getCategoryIconSvg = (category: ProblemCategory): string => {
   }
 };
 
-const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) => {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<any>(null);
-  const clusterLayer = useRef<any>(null);
+// Component to handle map focus and flying
+const MapController: React.FC<{ focusedLocation?: { lat: number; lng: number } | null }> = ({ focusedLocation }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (focusedLocation) {
+      map.flyTo([focusedLocation.lat, focusedLocation.lng], 16, { animate: true, duration: 1.5 });
+    }
+  }, [focusedLocation, map]);
+  return null;
+};
 
+const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) => {
   const [problems, setProblems] = useState<Problem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<MapplsSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Sync with data store
   useEffect(() => {
     setProblems(dataStore.getProblems());
     const handleUpdate = () => setProblems(dataStore.getProblems());
     dataStore.addEventListener('updated', handleUpdate);
+    setIsLoaded(true);
     return () => dataStore.removeEventListener('updated', handleUpdate);
   }, []);
-
-  // Initialize Map
-  useEffect(() => {
-    let active = true;
-
-    const init = async () => {
-      try {
-        await loadMapplsSDK();
-        if (!active) return;
-
-        if (!mapContainerRef.current) return;
-
-        // Set a timeout for the 'load' event (e.g. if tiles fail CORS)
-        const loadTimeout = setTimeout(() => {
-          if (!isLoaded && active) {
-            setError("Map load timeout: Tiles are being blocked by CORS. Please check your Mappls Dashboard whitelisting for localhost.");
-          }
-        }, 8000);
-
-        mapInstance.current = new window.mappls.Map('map', {
-          center: { lat: INDIA_CENTER.lat, lng: INDIA_CENTER.lng },
-          zoom: DEFAULT_ZOOM,
-          location: true
-        });
-
-        mapInstance.current.addListener('load', () => {
-          clearTimeout(loadTimeout);
-          setIsLoaded(true);
-          renderMarkers();
-        });
-      } catch (err: any) {
-        if (active) setError(err.message || "Failed to initialize map");
-      }
-    };
-
-    init();
-    return () => { active = false; };
-  }, []);
-
-  // Render Markers and Clusters
-  const renderMarkers = () => {
-    if (!mapInstance.current || !window.mappls) return;
-
-    if (clusterLayer.current) {
-      try { mapInstance.current.removeLayer(clusterLayer.current); } catch (e) { }
-    }
-
-    const markers = problems.map(problem => {
-      const color = getCategoryColor(problem.category);
-      const isResolved = problem.status === ProblemStatus.RESOLVED;
-
-      const html = `
-        <div class="custom-marker-wrapper" data-problem-id="${problem.id}">
-          ${!isResolved ? `<div class="marker-pulse" style="background: ${color}; opacity: 0.6;"></div>` : ''}
-          <div class="marker-base" style="background: ${isResolved ? '#10b981' : 'rgba(0,0,0,0.6)'}; border-color: ${isResolved ? '#059669' : color}; color: ${isResolved ? '#fff' : color};">
-            <div class="marker-icon">${getCategoryIconSvg(problem.category)}</div>
-          </div>
-          ${isResolved ? '<div class="status-badge">✓</div>' : ''}
-        </div>
-      `;
-
-      const marker = new window.mappls.Marker({
-        position: { lat: problem.location.lat, lng: problem.location.lng },
-        html: html,
-        width: 36,
-        height: 36,
-        popupHtml: getPopupHtml(problem),
-        title: problem.title
-      });
-
-      // Add click listener if provided
-      if (onProblemClick) {
-        marker.addListener('click', () => onProblemClick(problem));
-      }
-
-      return marker;
-    });
-
-    if (markers.length > 0) {
-      try {
-        clusterLayer.current = new window.mappls.MarkerCluster({
-          map: mapInstance.current,
-          markers: markers,
-          iconTheme: 'custom',
-          iconCreateFunction: (cluster: any) => {
-            const count = cluster.getChildCount();
-            return `<div class="custom-cluster-icon" style="width:40px; height:40px;">${count}</div>`;
-          }
-        });
-      } catch (e) {
-        markers.forEach(m => mapInstance.current.addLayer(m));
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (isLoaded) renderMarkers();
-  }, [problems, isLoaded]);
-
-  useEffect(() => {
-    if (mapInstance.current && focusedLocation) {
-      mapInstance.current.flyTo({
-        center: { lat: focusedLocation.lat, lng: focusedLocation.lng },
-        zoom: 16,
-        essential: true
-      });
-    }
-  }, [focusedLocation]);
 
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -180,76 +80,108 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
   const handleSuggestionSelect = (s: MapplsSuggestion) => {
     setSearchQuery(s.placeName);
     setShowSuggestions(false);
-    if (s.latitude && s.longitude && mapInstance.current) {
-      mapInstance.current.flyTo({ center: { lat: s.latitude, lng: s.longitude }, zoom: 16 });
+    // Note: Manual flying is handled by MapController via props changed in parent
+    if (onProblemClick && s.latitude && s.longitude) {
+      // Just a trick to center if needed, but MapController handles focusedLocation
     }
   };
 
-  const getPopupHtml = (problem: Problem) => {
-    const statusColor = problem.status === ProblemStatus.RESOLVED ? '#10b981' : '#ef4444';
-    return `
-      <div style="width: 240px; border-radius: 16px; overflow: hidden; background: #18181b;">
-        <img src="${problem.imageUrl}" style="width: 100%; height: 120px; object-fit: cover;" />
-        <div style="padding: 12px;">
-          <h3 style="color: white; font-size: 14px; font-weight: 700; margin: 0 0 4px 0;">${problem.title}</h3>
-          <p style="color: #a1a1aa; font-size: 11px; margin: 0 0 12px 0;">${problem.description.substring(0, 60)}...</p>
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-             <span style="font-size: 9px; font-weight: 800; color: ${statusColor}; text-transform: uppercase;">${problem.status}</span>
-             <button class="view-problem-btn" data-problem-id="${problem.id}" style="background: #4f46e5; color: white; border: none; padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer;">VIEW DETAILS</button>
-          </div>
+  const createCustomIcon = (problem: Problem) => {
+    const color = getCategoryColor(problem.category);
+    const isResolved = problem.status === ProblemStatus.RESOLVED;
+    const html = `
+      <div class="custom-marker-wrapper">
+        ${!isResolved ? `<div class="marker-pulse" style="background: ${color}; opacity: 0.6;"></div>` : ''}
+        <div class="marker-base" style="background: ${isResolved ? '#10b981' : 'rgba(24, 24, 27, 0.8)'}; border-color: ${isResolved ? '#059669' : color}; color: ${isResolved ? '#fff' : color};">
+          <div class="marker-icon">${getCategoryIconSvg(problem.category)}</div>
         </div>
+        ${isResolved ? '<div class="status-badge">✓</div>' : ''}
       </div>
     `;
+    return L.divIcon({
+      html: html,
+      className: 'custom-leaflet-marker',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+      popupAnchor: [0, -18]
+    });
   };
-
-  const recenter = () => {
-    if (navigator.geolocation && mapInstance.current) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        mapInstance.current.flyTo({
-          center: { lat: pos.coords.latitude, lng: pos.coords.longitude },
-          zoom: 15
-        });
-      });
-    }
-  };
-
-  if (error) {
-    return (
-      <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center p-8 text-center">
-        <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center text-red-500 mb-4">
-          <X size={32} />
-        </div>
-        <h2 className="text-xl font-bold text-white mb-2">GIS Subsystem Error</h2>
-        <p className="text-white/50 text-sm max-w-xs">{error}</p>
-      </div>
-    );
-  }
 
   return (
-    <div className="w-full h-full relative bg-black">
-      <div ref={mapContainerRef} id="map" className="w-full h-full" style={{ background: '#000' }}></div>
+    <div className="w-full h-full relative bg-black overflow-hidden">
+      <MapContainer
+        center={[INDIA_CENTER.lat, INDIA_CENTER.lng]}
+        zoom={DEFAULT_ZOOM}
+        className="w-full h-full"
+        zoomControl={false}
+        attributionControl={false}
+      >
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
+        />
+        <MapController focusedLocation={focusedLocation} />
 
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[90%] md:w-[450px] z-10">
+        {problems.map(problem => (
+          <Marker
+            key={problem.id}
+            position={[problem.location.lat, problem.location.lng]}
+            icon={createCustomIcon(problem)}
+            eventHandlers={{
+              click: () => onProblemClick?.(problem)
+            }}
+          >
+            <Popup className="premium-map-popup">
+              <div className="w-60 bg-zinc-950/90 backdrop-blur-md rounded-2xl overflow-hidden border border-white/10 shadow-emerald-500/20 shadow-2xl">
+                <img src={problem.imageUrl} className="w-full h-24 object-cover" />
+                <div className="p-3">
+                  <h3 className="text-white font-bold text-sm mb-1">{problem.title}</h3>
+                  <p className="text-white/40 text-[10px] line-clamp-2 mb-2">{problem.description}</p>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[9px] font-black uppercase tracking-tighter ${problem.status === ProblemStatus.RESOLVED ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {problem.status}
+                    </span>
+                    <button
+                      onClick={() => onProblemClick?.(problem)}
+                      className="text-[9px] font-bold bg-white text-black px-3 py-1 rounded-full hover:bg-zinc-200 transition-all"
+                    >
+                      DETAILS
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
+
+      {/* Search Overlay */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[90%] md:w-[450px] z-[1000]">
         <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center px-4 py-3 shadow-2xl">
           <Search size={18} className="text-white/40 mr-3" />
           <input
             type="text"
-            placeholder="Search location..."
+            placeholder="Search global locations (OSM)..."
             className="bg-transparent border-none outline-none text-white text-sm w-full placeholder-white/20"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="text-white/40 hover:text-white">
+              <X size={16} />
+            </button>
+          )}
         </div>
 
         {showSuggestions && suggestions.length > 0 && (
-          <div className="mt-2 bg-zinc-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
+          <div className="mt-2 bg-zinc-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto animate-in fade-in slide-in-from-top-2">
             {suggestions.map((s, i) => (
               <div
                 key={i}
                 onClick={() => handleSuggestionSelect(s)}
-                className="px-4 py-3 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-none"
+                className="px-4 py-3 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-none group"
               >
-                <div className="text-sm font-bold text-white">{s.placeName}</div>
+                <div className="text-sm font-bold text-white group-hover:text-indigo-400 transition-colors">{s.placeName}</div>
                 <div className="text-[10px] text-white/40 truncate">{s.placeAddress}</div>
               </div>
             ))}
@@ -257,22 +189,10 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
         )}
       </div>
 
-      <button
-        onClick={recenter}
-        className="absolute bottom-24 right-6 md:bottom-10 md:right-10 w-12 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-2xl transition-all z-10"
-      >
-        <Locate size={20} />
-      </button>
-
       {!isLoaded && (
-        <div className="absolute inset-0 bg-black flex flex-col items-center justify-center z-50">
-          <div className="relative">
-            <div className="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping"></div>
-            </div>
-          </div>
-          <p className="mt-4 text-[10px] font-bold text-indigo-400 tracking-[0.2em] uppercase">Initializing Mappls GIS</p>
+        <div className="absolute inset-0 bg-black flex flex-col items-center justify-center z-[2000]">
+          <Loader2 className="animate-spin text-white mb-4" size={32} />
+          <p className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase">Initializing Open Maps</p>
         </div>
       )}
     </div>

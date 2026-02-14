@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Camera, MapPin, Loader2, ChevronRight, Sparkles, Zap, Search } from 'lucide-react';
 import { ProblemCategory, ProblemStatus, MapplsSuggestion } from '../types';
 import { dataStore } from '../services/store';
-import { loadMapplsSDK, reverseGeocode, searchPlaces } from '../services/mapplsUtils';
+import { reverseGeocode, searchPlaces } from '../services/mapUtils';
 import { GoogleGenAI, Type } from "@google/genai";
 
 const ReportPage: React.FC = () => {
@@ -27,7 +27,6 @@ const ReportPage: React.FC = () => {
   });
 
   useEffect(() => {
-    loadMapplsSDK();
     detectLocation();
   }, []);
 
@@ -128,8 +127,8 @@ const ReportPage: React.FC = () => {
                 type="button"
                 onClick={() => setFormData({ ...formData, category: cat })}
                 className={`p-4 rounded-2xl text-left border transition-all ${formData.category === cat
-                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
-                    : 'bg-zinc-900 border-white/5 text-white/40 hover:bg-zinc-800'
+                  ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
+                  : 'bg-zinc-900 border-white/5 text-white/40 hover:bg-zinc-800'
                   }`}
               >
                 <div className="text-[10px] uppercase font-bold tracking-widest opacity-60 mb-1">{cat.split('&')[0]}</div>
