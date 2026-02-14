@@ -24,22 +24,20 @@ export const loadMapplsSDK = (): Promise<void> => {
         const key = import.meta.env.VITE_MAPPLS_JS_KEY;
 
         if (!key) {
-            console.error("Mappls JS Key is missing.");
-            reject(new Error("Mappls JS Key is missing"));
+            console.error("Mappls JS Key is missing from environment variables.");
+            reject(new Error("Mappls JS Key is missing. Please set VITE_MAPPLS_JS_KEY in your env."));
             return;
         }
 
         const script = document.createElement('script');
-        // Using the August 2025 onwards authentication mechanism (sdk.mappls.com)
-        script.src = `https://sdk.mappls.com/map/sdk/web?v=3.0&access_token=${key}`;
+        // Using apis.mappls.com which was more successful in initial loads
+        script.src = `https://apis.mappls.com/advancedmaps/api/${key}/map_sdk?layer=vector&v=3.0`;
         script.async = true;
         script.defer = true;
 
         script.onload = () => {
-            // Load plugins after core SDK using the documented format
             const plugins = document.createElement('script');
-            // Standard plugin URL for the new SDK
-            plugins.src = `https://sdk.mappls.com/map/sdk/plugins?v=3.0&access_token=${key}`;
+            plugins.src = `https://apis.mappls.com/advancedmaps/api/${key}/map_sdk_plugins?v=3.0`;
             plugins.async = true;
             plugins.defer = true;
             plugins.onload = () => {
@@ -48,11 +46,14 @@ export const loadMapplsSDK = (): Promise<void> => {
             };
             plugins.onerror = () => {
                 console.warn("Mappls Plugins failed to load, falling back to core SDK");
-                resolve(); // Resolve so map still works even if clustering fails
+                resolve();
             };
             document.head.appendChild(plugins);
         };
-        script.onerror = () => reject(new Error("Failed to load Mappls SDK script. Please check your API key and Internet connection."));
+        script.onerror = () => {
+            const maskedKey = key.substring(0, 5) + "..." + key.substring(key.length - 3);
+            reject(new Error(`Failed to load Mappls SDK script (Key: ${maskedKey}). Check your Mappls Dashboard whitelisting.`));
+        };
         document.head.appendChild(script);
     });
 
