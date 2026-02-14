@@ -12,7 +12,7 @@ const ReportPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<MapplsSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -51,7 +51,7 @@ const ReportPage: React.FC = () => {
     setAiLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `I want to report a city problem: "${formData.title}". 
@@ -112,14 +112,14 @@ const ReportPage: React.FC = () => {
   return (
     <div className="w-full h-full overflow-y-auto bg-black p-4 md:p-8 pb-32 custom-scrollbar">
       <div className="max-w-2xl mx-auto space-y-8 mt-8">
-        
+
         <header>
           <h1 className="text-3xl font-bold text-white tracking-tight">Citizen Report</h1>
           <p className="text-white/40 mt-1">Submit infrastructure issues for rapid resolution.</p>
         </header>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          
+
           {/* Categorization */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {Object.values(ProblemCategory).map((cat) => (
@@ -127,11 +127,10 @@ const ReportPage: React.FC = () => {
                 key={cat}
                 type="button"
                 onClick={() => setFormData({ ...formData, category: cat })}
-                className={`p-4 rounded-2xl text-left border transition-all ${
-                  formData.category === cat 
-                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20' 
+                className={`p-4 rounded-2xl text-left border transition-all ${formData.category === cat
+                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
                     : 'bg-zinc-900 border-white/5 text-white/40 hover:bg-zinc-800'
-                }`}
+                  }`}
               >
                 <div className="text-[10px] uppercase font-bold tracking-widest opacity-60 mb-1">{cat.split('&')[0]}</div>
                 <div className="text-sm font-bold truncate">{cat}</div>
@@ -176,8 +175,8 @@ const ReportPage: React.FC = () => {
               <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-1">Impact Location</p>
               <p className="text-sm text-white font-medium truncate">{formData.address || "Detecting..."}</p>
             </div>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={detectLocation}
               className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2"
             >

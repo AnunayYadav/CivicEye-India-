@@ -1,0 +1,88 @@
+﻿[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32mΓ£ô[39m 3 modules transformed.
+node.exe : 
+[31mx[39m Build 
+failed in 213ms
+At line:1 char:1
++ & "C:\Program Files
+\nodejs/node.exe" "C:
+\Users\ASUS\AppData\R
+oaming\n ...
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: ([31mx   
+ [39m Build faile    
+d in 213ms:Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+[31merror during 
+build:
+[31m[vite:css] 
+[postcss] It looks 
+like you're trying 
+to use `tailwindcss` 
+directly as a 
+PostCSS plugin. The 
+PostCSS plugin has 
+moved to a separate 
+package, so to 
+continue using 
+Tailwind CSS with 
+PostCSS you'll need 
+to install `@tailwind
+css/postcss` and 
+update your PostCSS 
+configuration.[31m
+file: [36mC:/Users/A
+SUS/OneDrive/Desktop/
+Anunayy/AntiGravity/C
+ivicEye-India-/src/in
+dex.css:undefined:NaN
+[31m
+    at lt (C:\Users\A
+SUS\OneDrive\Desktop\
+Anunayy\AntiGravity\C
+ivicEye-India-\node_m
+odules\tailwindcss\di
+st\lib.js:38:1643)
+    at 
+LazyResult.runOnRoot 
+(C:\Users\ASUS\OneDri
+ve\Desktop\Anunayy\An
+tiGravity\CivicEye-In
+dia-\node_modules\pos
+tcss\lib\lazy-result.
+js:361:16)
+    at 
+LazyResult.runAsync (
+C:\Users\ASUS\OneDriv
+e\Desktop\Anunayy\Ant
+iGravity\CivicEye-Ind
+ia-\node_modules\post
+css\lib\lazy-result.j
+s:290:26)
+    at 
+LazyResult.async (C:\
+Users\ASUS\OneDrive\D
+esktop\Anunayy\AntiGr
+avity\CivicEye-India-
+\node_modules\postcss
+\lib\lazy-result.js:1
+92:30)
+    at 
+LazyResult.then (C:\U
+sers\ASUS\OneDrive\De
+sktop\Anunayy\AntiGra
+vity\CivicEye-India-\
+node_modules\postcss\
+lib\lazy-result.js:43
+6:17)[39m
