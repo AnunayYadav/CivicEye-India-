@@ -30,16 +30,16 @@ export const loadMapplsSDK = (): Promise<void> => {
         }
 
         const script = document.createElement('script');
-        // Using SDK URL as per provided documentation with raster fallback
-        script.src = `https://sdk.mappls.com/map/sdk/web?v=3.0&access_token=${key}&layer=raster`;
+        // Reverting to default vector layer and cleaning up URL
+        script.src = `https://sdk.mappls.com/map/sdk/web?v=3.0&access_token=${key}`;
         script.async = true;
         script.defer = true;
 
         script.onload = () => {
             // Load plugins after core SDK
             const plugins = document.createElement('script');
-            // Assuming the plugin URL follows the same access_token pattern
-            plugins.src = `https://sdk.mappls.com/map/sdk/plugins?v=3.0&access_token=${key}`;
+            // Try the standardized plugin URL for this endpoint
+            plugins.src = `https://sdk.mappls.com/map/sdk/plugins?v=3.0`;
             plugins.async = true;
             plugins.defer = true;
             plugins.onload = () => {
@@ -47,8 +47,16 @@ export const loadMapplsSDK = (): Promise<void> => {
                 resolve();
             };
             plugins.onerror = () => {
-                console.warn("Mappls Plugins failed to load, falling back to core SDK");
-                resolve(); // Still resolve so map works even without clusters
+                console.warn("Mappls Plugins failed to load, trying alternative URL...");
+                const altPlugins = document.createElement('script');
+                altPlugins.src = `https://apis.mappls.com/advancedmaps/api/${key}/map_sdk_plugins?v=3.0`;
+                altPlugins.async = true;
+                altPlugins.onload = () => resolve();
+                altPlugins.onerror = () => {
+                    console.warn("All plugin URLs failed, falling back to core SDK");
+                    resolve();
+                };
+                document.head.appendChild(altPlugins);
             };
             document.head.appendChild(plugins);
         };
