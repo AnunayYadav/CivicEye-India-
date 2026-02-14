@@ -30,15 +30,16 @@ export const loadMapplsSDK = (): Promise<void> => {
         }
 
         const script = document.createElement('script');
-        // Reverting to the URL format that successfully loaded the script in previous attempts
-        script.src = `https://apis.mappls.com/advancedmaps/api/${key}/map_sdk?layer=vector&v=3.0`;
+        // Using the August 2025 onwards authentication mechanism (sdk.mappls.com)
+        script.src = `https://sdk.mappls.com/map/sdk/web?v=3.0&access_token=${key}`;
         script.async = true;
         script.defer = true;
 
         script.onload = () => {
-            // Load plugins after core SDK using the established format
+            // Load plugins after core SDK using the documented format
             const plugins = document.createElement('script');
-            plugins.src = `https://apis.mappls.com/advancedmaps/api/${key}/map_sdk_plugins?v=3.0`;
+            // Standard plugin URL for the new SDK
+            plugins.src = `https://sdk.mappls.com/map/sdk/plugins?v=3.0&access_token=${key}`;
             plugins.async = true;
             plugins.defer = true;
             plugins.onload = () => {
@@ -47,11 +48,11 @@ export const loadMapplsSDK = (): Promise<void> => {
             };
             plugins.onerror = () => {
                 console.warn("Mappls Plugins failed to load, falling back to core SDK");
-                resolve();
+                resolve(); // Resolve so map still works even if clustering fails
             };
             document.head.appendChild(plugins);
         };
-        script.onerror = () => reject(new Error("Failed to load Mappls SDK script. URL: " + script.src));
+        script.onerror = () => reject(new Error("Failed to load Mappls SDK script. Please check your API key and Internet connection."));
         document.head.appendChild(script);
     });
 
