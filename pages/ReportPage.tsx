@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Loader2, ChevronRight, Sparkles, Zap, Hash, Target, ClipboardList } from 'lucide-react';
-import { ProblemCategory, ProblemStatus } from '../types';
+import { MapPin, Loader2, ChevronRight, Sparkles, Zap, Hash, Target, ClipboardList, AlertTriangle } from 'lucide-react';
+import { ProblemCategory, ProblemStatus, Department } from '../types';
 import { dataStore } from '../services/store';
 import { reverseGeocode } from '../services/mapUtils';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -20,7 +20,8 @@ const ReportPage: React.FC = () => {
     category: ProblemCategory.OTHER,
     location: { lat: 0, lng: 0 },
     imageUrl: '',
-    address: ''
+    address: '',
+    urgency: 'MEDIUM' as 'LOW' | 'MEDIUM' | 'HIGH'
   });
 
   useEffect(() => {
@@ -53,7 +54,8 @@ const ReportPage: React.FC = () => {
         Analyze this and return a JSON object with:
         1. "refinedTitle": A clear, concise title.
         2. "professionalDescription": A detailed description of the problem for city officials.
-        3. "suggestedCategory": One of: ${Object.values(ProblemCategory).join(', ')}.`,
+        3. "suggestedCategory": One of: ${Object.values(ProblemCategory).join(', ')}.
+        4. "urgency": Either "LOW", "MEDIUM", or "HIGH" based on safety and necessity.`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -62,8 +64,9 @@ const ReportPage: React.FC = () => {
               refinedTitle: { type: Type.STRING },
               professionalDescription: { type: Type.STRING },
               suggestedCategory: { type: Type.STRING },
+              urgency: { type: Type.STRING },
             },
-            required: ["refinedTitle", "professionalDescription", "suggestedCategory"]
+            required: ["refinedTitle", "professionalDescription", "suggestedCategory", "urgency"]
           }
         }
       });
@@ -73,7 +76,8 @@ const ReportPage: React.FC = () => {
         ...prev,
         title: result.refinedTitle,
         description: result.professionalDescription,
-        category: result.suggestedCategory as ProblemCategory
+        category: result.suggestedCategory as ProblemCategory,
+        urgency: (['LOW', 'MEDIUM', 'HIGH'].includes(result.urgency) ? result.urgency : 'MEDIUM') as any
       }));
     } catch (e) {
       console.error("AI Assist failed", e);
@@ -90,141 +94,186 @@ const ReportPage: React.FC = () => {
     const newProblem = {
       id: `rep_${Date.now()}`,
       ...formData,
-      status: ProblemStatus.PENDING,
+      status: ProblemStatus.SUBMITTED,
       reportedBy: 'Citizen User',
       createdAt: Date.now(),
       updatedAt: Date.now(),
       upvotes: 0,
-      imageUrl: formData.imageUrl || `https://picsum.photos/800/600?random=${Date.now()}`
+      imageUrl: formData.imageUrl || `https://picsum.photos/800/600?random=${Date.now()}`,
+      timeline: [
+        {
+          id: `ev_${Date.now()}`,
+          status: ProblemStatus.SUBMITTED,
+          user: 'Citizen User',
+          note: 'Incident logged and transmitted to central node.',
+          timestamp: Date.now()
+        }
+      ]
     };
 
-    dataStore.addProblem(newProblem);
+    dataStore.addProblem(newProblem as any);
     setLoading(false);
     navigate('/');
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full h-full overflow-y-auto bg-black p-4 md:p-8 pb-32 custom-scrollbar"
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="w-full h-full overflow-y-auto bg-[#050505] p-4 md:p-8 pb-32 custom-scrollbar"
     >
-      <div className="max-w-3xl mx-auto space-y-12 mt-12">
+      <div className="max-w-4xl mx-auto space-y-12 mt-12 pb-20">
         <header className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-500 border border-indigo-500/20">
-              <ClipboardList size={24} />
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-white/[0.03] rounded-[24px] flex items-center justify-center text-indigo-500 border border-white/5 shadow-2xl">
+              <ClipboardList size={32} strokeWidth={2.5} />
             </div>
             <div>
-              <h1 className="text-4xl font-black text-white tracking-tight">Citizen Report</h1>
-              <p className="text-white/40 text-sm font-medium">Contribute to India's infrastructure evolution.</p>
+              <div className="flex items-center gap-2 mb-1 text-indigo-400">
+                <Sparkles size={14} />
+                <span className="text-[10px] font-black uppercase tracking-[0.3em]">Protocol Input</span>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic">Log Incident</h1>
+              <p className="text-white/40 text-sm font-bold">Transmitting real-time civic diagnostics to the grid.</p>
             </div>
           </div>
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-10">
-          {/* Categorization */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-white/20 uppercase text-[10px] font-black tracking-widest px-1">
-              <Hash size={12} />
-              <span>Select Category</span>
+        <form onSubmit={handleSubmit} className="space-y-12">
+
+          {/* Categorization Matrix */}
+          <section className="space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+              <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Category Matrix</p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {Object.values(ProblemCategory).map((cat) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setFormData({ ...formData, category: cat })}
-                  className={`p-6 rounded-3xl text-left border-2 transition-all group ${formData.category === cat
-                    ? 'bg-indigo-600 border-indigo-400 text-white shadow-[0_0_30px_rgba(79,70,229,0.3)]'
-                    : 'bg-zinc-900 border-white/5 text-white/40 hover:border-white/10 hover:text-white'
+                  className={`p-4 rounded-2xl text-left border transition-all duration-300 ${formData.category === cat
+                    ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-600/30 ring-2 ring-indigo-500/20'
+                    : 'bg-zinc-950 border-white/5 text-white/20 hover:border-white/20 hover:text-white'
                     }`}
                 >
-                  <div className={`text-[10px] uppercase font-black tracking-widest opacity-60 mb-2 transition-transform ${formData.category === cat ? 'translate-x-1' : ''}`}>{cat}</div>
-                  <div className="text-sm font-bold truncate">Issue detected</div>
+                  <p className="text-[9px] font-black uppercase tracking-tighter mb-1 opacity-60">CAT_{cat.slice(0, 3).toUpperCase()}</p>
+                  <div className="text-[11px] font-black leading-tight">{cat}</div>
                 </button>
               ))}
             </div>
           </section>
 
-          {/* Details Input */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-white/20 uppercase text-[10px] font-black tracking-widest px-1">
-              <Target size={12} />
-              <span>Problem Intelligence</span>
-            </div>
-            <div className="bg-zinc-900 border-2 border-white/5 rounded-[32px] overflow-hidden transition-all focus-within:border-indigo-500/50 shadow-2xl">
-              <div className="flex items-center border-b-2 border-white/5 pr-6 bg-white/[0.02]">
-                <input
-                  type="text"
-                  placeholder="Briefly describe the observation..."
-                  className="w-full bg-transparent p-8 text-xl font-bold text-white outline-none placeholder:text-white/10"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                />
-                <button
-                  type="button"
-                  onClick={handleAiAssist}
-                  disabled={!formData.title || aiLoading}
-                  className="flex items-center gap-2 bg-indigo-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black tracking-wider transition-all hover:scale-105 active:scale-95 disabled:opacity-30 disabled:scale-100 shadow-xl shadow-indigo-600/20"
-                >
-                  {aiLoading ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                  {aiLoading ? "PROCESSING" : "AI ENHANCE"}
-                </button>
+          {/* Intelligence & Urgency */}
+          <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+                <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Problem Intelligence</p>
               </div>
-              <textarea
-                placeholder="Provide context, exact landmarks, or risk levels for municipal officials..."
-                className="w-full bg-transparent p-8 text-base text-white/60 outline-none resize-none min-h-[160px] leading-relaxed"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
+              <div className="bg-zinc-950 border border-white/5 rounded-[32px] overflow-hidden focus-within:border-indigo-500/30 transition-all shadow-2xl">
+                <div className="flex flex-col md:flex-row md:items-center border-b border-white/5 bg-white/[0.01]">
+                  <input
+                    type="text"
+                    placeholder="INCIDENT TITLE..."
+                    className="flex-1 bg-transparent p-6 text-lg font-black text-white outline-none placeholder:text-white/10 italic"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  />
+                  <div className="px-6 py-4 border-t md:border-t-0 md:border-l border-white/5 flex items-center justify-between gap-4">
+                    <span className="text-[10px] font-black text-white/20 uppercase tracking-widest hidden md:block">Process Signal</span>
+                    <button
+                      type="button"
+                      onClick={handleAiAssist}
+                      disabled={!formData.title || aiLoading}
+                      className="flex items-center gap-3 bg-indigo-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-indigo-500 active:scale-95 disabled:opacity-20 shadow-lg shadow-indigo-600/20"
+                    >
+                      {aiLoading ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                      {aiLoading ? "Analysing" : "AI Refine"}
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  placeholder="Detailed diagnostics. Mention proximity to landmarks, risk profiles, and observed impact..."
+                  className="w-full bg-transparent p-8 text-sm font-medium text-white/50 outline-none resize-none min-h-[140px] leading-relaxed custom-scrollbar"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-1.5 h-6 bg-red-500 rounded-full" />
+                <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Risk Profile</p>
+              </div>
+              <div className="bg-zinc-950 border border-white/5 rounded-[32px] p-6 space-y-4 shadow-2xl">
+                {['LOW', 'MEDIUM', 'HIGH'].map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, urgency: level as any })}
+                    className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${formData.urgency === level
+                        ? level === 'HIGH' ? 'bg-red-500 border-red-400 text-white shadow-lg' : 'bg-indigo-600 border-indigo-400 text-white shadow-lg'
+                        : 'bg-white/[0.02] border-white/5 text-white/40 hover:border-white/20'
+                      }`}
+                  >
+                    <span className="text-[10px] font-black uppercase tracking-widest">{level} PRIORITY</span>
+                    {formData.urgency === level && <AlertTriangle size={14} className={level === 'HIGH' ? 'animate-pulse' : ''} />}
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
 
-          {/* Location Picker with GPS visibility */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-white/20 uppercase text-[10px] font-black tracking-widest px-1">
-              <MapPin size={12} />
-              <span>Spatial telemetry</span>
+          {/* Telemetry Block */}
+          <section className="space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
+              <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Spatial Telemetry</p>
             </div>
-            <div className="bg-zinc-900 border-2 border-white/5 rounded-[32px] p-8 flex flex-col md:flex-row items-center gap-8 shadow-2xl">
-              <div className="w-16 h-16 bg-emerald-500 text-black rounded-[20px] flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
-                <MapPin size={32} strokeWidth={2.5} />
+            <div className="bg-zinc-950 border border-white/5 rounded-[32px] p-8 flex flex-col md:flex-row items-center gap-8 shadow-2xl relative overflow-hidden group">
+              <div className="absolute inset-0 bg-emerald-500/[0.02] -z-10 group-hover:opacity-100 opacity-0 transition-opacity" />
+              <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-[22px] flex items-center justify-center shrink-0 border border-emerald-500/20">
+                <Target size={32} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
               </div>
-              <div className="flex-1 w-full space-y-2">
-                <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Verified Position</p>
-                <p className="text-lg text-white font-bold leading-tight">{formData.address || "Resolving address..."}</p>
-                <div className="flex items-center gap-4 text-emerald-500/60 font-mono text-[11px] font-bold p-2 bg-emerald-500/5 rounded-lg border border-emerald-500/10 inline-block w-fit">
-                  <div className="flex items-center gap-1">
-                    <span className="opacity-50 text-[9px]">LAT:</span>
-                    <span>{formData.location.lat.toFixed(6) || "---"}</span>
+              <div className="flex-1 w-full space-y-3">
+                <p className="text-[11px] text-white font-black leading-tight tracking-tight uppercase group-hover:text-emerald-400 transition-colors">
+                  {formData.address || "Establishing Uplink..."}
+                </p>
+                <div className="flex flex-wrap gap-4 font-mono text-[10px] font-black text-emerald-500/60 transition-all">
+                  <div className="flex items-center gap-2 bg-emerald-500/5 px-3 py-1.5 rounded-lg border border-emerald-500/10">
+                    <span className="opacity-30">LAT:</span>
+                    <span>{formData.location.lat.toFixed(8)}</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="opacity-50 text-[9px]">LNG:</span>
-                    <span>{formData.location.lng.toFixed(6) || "---"}</span>
+                  <div className="flex items-center gap-2 bg-emerald-500/5 px-3 py-1.5 rounded-lg border border-emerald-500/10">
+                    <span className="opacity-30">LNG:</span>
+                    <span>{formData.location.lng.toFixed(8)}</span>
                   </div>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={detectLocation}
-                className="px-8 py-4 bg-white/5 hover:bg-white/10 text-white text-xs font-black rounded-2xl transition-all flex items-center gap-3 border border-white/5 active:scale-95"
+                className="w-full md:w-auto px-10 py-5 bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all border border-white/10 active:scale-95 flex items-center justify-center gap-3"
               >
                 {locationLoading ? <Loader2 className="animate-spin" size={16} /> : <Zap size={16} />}
-                SYNC GPS
+                RE-SYNC RADIUS
               </button>
             </div>
           </section>
 
-          {/* Submission */}
+          {/* Submission Control */}
           <button
             type="submit"
             disabled={loading || !formData.title}
-            className="group relative w-full h-20 rounded-[32px] font-black text-xl flex items-center justify-center gap-4 transition-all overflow-hidden"
+            className="group relative w-full h-24 rounded-[40px] font-black text-2xl uppercase tracking-tighter flex items-center justify-center gap-4 transition-all overflow-hidden shadow-2xl"
           >
-            <div className="absolute inset-0 bg-white group-hover:bg-zinc-100 transition-colors" />
-            <div className="relative flex items-center gap-3 text-black">
-              {loading ? <Loader2 className="animate-spin" /> : <>TRANSMIT REPORT <ChevronRight className="group-hover:translate-x-1 transition-transform" strokeWidth={3} /></>}
+            <div className="absolute inset-0 bg-white group-hover:bg-indigo-50 transition-colors" />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+            <div className="relative flex items-center gap-4 text-black italic">
+              {loading ? <Loader2 className="animate-spin" /> : <>Transmit Data <ChevronRight strokeWidth={4} className="group-hover:translate-x-2 transition-transform" /></>}
             </div>
           </button>
         </form>

@@ -1,17 +1,40 @@
 
 export enum ProblemStatus {
-  PENDING = 'PENDING',
+  SUBMITTED = 'SUBMITTED',
+  UNDER_REVIEW = 'UNDER_REVIEW',
+  ASSIGNED = 'ASSIGNED',
   IN_PROGRESS = 'IN_PROGRESS',
   RESOLVED = 'RESOLVED',
-  REJECTED = 'REJECTED'
+  CLOSED = 'CLOSED',
+  REJECTED = 'REJECTED',
+  PENDING = 'PENDING' // Match legacy if needed, but PRD uses SUBMITTED
 }
 
 export enum ProblemCategory {
-  ROADS = 'Roads & Potholes',
-  GARBAGE = 'Garbage & Sanitation',
-  ELECTRICITY = 'Electricity & Streetlights',
-  WATER = 'Water Supply',
-  TRAFFIC = 'Traffic & Parking',
+  ROADS = 'Road Damage',
+  STREET_LIGHT = 'Street Light Issue',
+  GARBAGE = 'Garbage Problem',
+  WATER_LEAK = 'Water Leakage',
+  DRAINAGE = 'Drainage Block',
+  PUBLIC_TOILET = 'Public Toilet Damage',
+  CONSTRUCTION = 'Illegal Construction',
+  NOISE = 'Noise Complaint',
+  ANIMAL = 'Animal Issue',
+  OTHER = 'Other'
+}
+
+export enum UserRole {
+  CITIZEN = 'CITIZEN',
+  ADMIN = 'ADMIN',
+  SUPER_ADMIN = 'SUPER_ADMIN'
+}
+
+export enum Department {
+  ROADS_TRANSPORT = 'Road & Transport',
+  ELECTRICITY = 'Electricity',
+  SANITATION = 'Sanitation',
+  WATER_SUPPLY = 'Water Supply',
+  PUBLIC_SAFETY = 'Public Safety',
   OTHER = 'Other'
 }
 
@@ -20,33 +43,54 @@ export interface Coordinates {
   lng: number;
 }
 
+export interface TimelineEvent {
+  id: string;
+  status: ProblemStatus;
+  user: string;
+  note: string;
+  timestamp: number;
+}
+
 export interface Problem {
   id: string;
   title: string;
   description: string;
   category: ProblemCategory;
   location: Coordinates;
-  address?: string; // Reverse geocoded address approximation
+  address?: string;
   imageUrl: string;
   status: ProblemStatus;
   reportedBy: string;
-  createdAt: number; // Timestamp
+  createdAt: number;
   updatedAt: number;
   upvotes: number;
+  urgency: 'LOW' | 'MEDIUM' | 'HIGH';
+  department?: Department;
+  assignedTo?: string;
+  timeline: TimelineEvent[];
+  resolutionImage?: string;
+  feedback?: {
+    rating: number;
+    comment: string;
+  };
 }
 
 export interface User {
   id: string;
   name: string;
-  role: 'CITIZEN' | 'ADMIN';
+  role: UserRole;
   email: string;
+  profilePic?: string;
+  city?: string;
 }
 
 export interface DashboardStats {
   total: number;
-  pending: number;
+  pending: number; // Sum of non-resolved/closed/rejected
   resolved: number;
   byCategory: Record<string, number>;
+  avgResolutionTime: string;
+  satisfactionRate: number;
 }
 
 export interface MapplsSuggestion {

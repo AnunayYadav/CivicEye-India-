@@ -5,7 +5,7 @@ import 'leaflet.heat';
 import { Problem, ProblemStatus, MapplsSuggestion, ProblemCategory } from '../types';
 import { dataStore } from '../services/store';
 import { INDIA_CENTER, DEFAULT_ZOOM } from '../constants';
-import { Search, X, Locate, Loader2, Filter, Flame } from 'lucide-react';
+import { Search, X, Locate, Loader2, Filter, Flame, HardHat, Lightbulb, Trash2, Droplets, Waves, Bath, Home, Volume2, Dog, Info } from 'lucide-react';
 import { searchPlaces } from '../services/mapUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -17,11 +17,14 @@ interface MapViewProps {
 const getCategoryColor = (category: ProblemCategory): string => {
   switch (category) {
     case ProblemCategory.ROADS: return '#f97316';
-    case ProblemCategory.GARBAGE: return '#eab308';
-    case ProblemCategory.ELECTRICITY: return '#a855f7';
-    case ProblemCategory.WATER: return '#3b82f6';
-    case ProblemCategory.TRAFFIC: return '#ef4444';
-    case ProblemCategory.OTHER: return '#9ca3af';
+    case ProblemCategory.STREET_LIGHT: return '#fbbf24';
+    case ProblemCategory.GARBAGE: return '#10b981';
+    case ProblemCategory.WATER_LEAK: return '#3b82f6';
+    case ProblemCategory.DRAINAGE: return '#6366f1';
+    case ProblemCategory.PUBLIC_TOILET: return '#ec4899';
+    case ProblemCategory.CONSTRUCTION: return '#ef4444';
+    case ProblemCategory.NOISE: return '#8b5cf6';
+    case ProblemCategory.ANIMAL: return '#14b8a6';
     default: return '#9ca3af';
   }
 };
@@ -29,12 +32,12 @@ const getCategoryColor = (category: ProblemCategory): string => {
 const getCategoryIconSvg = (category: ProblemCategory): string => {
   const props = 'width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"';
   switch (category) {
-    case ProblemCategory.ROADS: return `<svg ${props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`;
-    case ProblemCategory.GARBAGE: return `<svg ${props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>`;
-    case ProblemCategory.ELECTRICITY: return `<svg ${props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`;
-    case ProblemCategory.WATER: return `<svg ${props}><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>`;
-    case ProblemCategory.TRAFFIC: return `<svg ${props}><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3"/><circle cx="7" cy="15" r="1"/><circle cx="17" cy="15" r="1"/></svg>`;
-    default: return `<svg ${props}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+    case ProblemCategory.ROADS: return `<svg ${props}><path d="M12 2v20"/><path d="M2 12h20"/><path d="m17 7-5-5-5 5"/><path d="m17 17-5 5-5-5"/></svg>`;
+    case ProblemCategory.STREET_LIGHT: return `<svg ${props}><circle cx="12" cy="12" r="3"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>`;
+    case ProblemCategory.GARBAGE: return `<svg ${props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
+    case ProblemCategory.WATER_LEAK: return `<svg ${props}><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>`;
+    case ProblemCategory.DRAINAGE: return `<svg ${props}><path d="M2 12h20"/><path d="M7 12a5 5 0 0 1 10 0"/><path d="M12 7V2"/></svg>`;
+    default: return `<svg ${props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
   }
 };
 
@@ -51,7 +54,6 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
 
-  // Initialize Map
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
 
@@ -62,9 +64,7 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
       attributionControl: false
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd'
-    }).addTo(mapInstance.current);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(mapInstance.current);
 
     markerLayer.current = L.layerGroup().addTo(mapInstance.current);
     setIsLoaded(true);
@@ -75,15 +75,13 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
     };
   }, []);
 
-  // Sync Problems
   useEffect(() => {
-    setProblems(dataStore.getProblems());
-    const handleUpdate = () => setProblems(dataStore.getProblems());
-    dataStore.addEventListener('updated', handleUpdate);
-    return () => dataStore.removeEventListener('updated', handleUpdate);
+    const update = () => setProblems(dataStore.getProblems());
+    update();
+    dataStore.addEventListener('updated', update);
+    return () => dataStore.removeEventListener('updated', update);
   }, []);
 
-  // Update Markers & Heatmap
   useEffect(() => {
     if (!mapInstance.current || !markerLayer.current) return;
 
@@ -94,23 +92,21 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
     }
 
     if (showHeatmap) {
-      const heatPoints = problems.map(p => [p.location.lat, p.location.lng, 0.8]);
+      const heatPoints = problems.map(p => [p.location.lat, p.location.lng, p.urgency === 'HIGH' ? 1.0 : 0.6]);
       // @ts-ignore
       heatLayer.current = L.heatLayer(heatPoints, {
-        radius: 25,
-        blur: 15,
-        maxZoom: 17,
+        radius: 25, blur: 15, maxZoom: 17,
         gradient: { 0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1.0: 'red' }
       }).addTo(mapInstance.current);
     } else {
       problems.forEach(problem => {
         const color = getCategoryColor(problem.category);
-        const isResolved = problem.status === ProblemStatus.RESOLVED;
+        const isResolved = problem.status === ProblemStatus.RESOLVED || problem.status === ProblemStatus.CLOSED;
 
         const html = `
               <div class="custom-marker-wrapper">
                 ${!isResolved ? `<div class="marker-pulse" style="background: ${color}; opacity: 0.6;"></div>` : ''}
-                <div class="marker-base" style="background: ${isResolved ? '#10b981' : 'rgba(24, 24, 27, 0.8)'}; border-color: ${isResolved ? '#059669' : color}; color: ${isResolved ? '#fff' : color};">
+                <div class="marker-base" style="background: ${isResolved ? '#10b981' : 'rgba(24, 24, 27, 0.9)'}; border-color: ${isResolved ? '#059669' : color}; color: ${isResolved ? '#fff' : color};">
                   <div class="marker-icon">${getCategoryIconSvg(problem.category)}</div>
                 </div>
                 ${isResolved ? '<div class="status-badge">✓</div>' : ''}
@@ -126,43 +122,44 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
         });
 
         const popupHtml = `
-              <div class="w-60 bg-zinc-950 rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-                <div class="relative h-24">
-                  <img src="${problem.imageUrl}" class="w-full h-full object-cover" />
-                  <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 to-transparent"></div>
+              <div class="w-64 bg-[#050505] rounded-[24px] overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,1)]">
+                <div class="relative h-28">
+                  <img src="${problem.imageUrl}" class="w-full h-full object-cover grayscale" />
+                  <div class="absolute inset-0 bg-gradient-to-t from-[#050505] to-transparent"></div>
+                  <div class="absolute top-3 right-3 px-2 py-1 rounded-md bg-black/50 backdrop-blur-md border border-white/5 text-[8px] font-black text-white/40 uppercase tracking-widest">${problem.id}</div>
                 </div>
-                <div class="p-3">
-                  <h3 class="text-white font-bold text-sm mb-1">${problem.title}</h3>
-                  <div class="flex items-center gap-2 mb-2">
-                    <div class="w-1.5 h-1.5 rounded-full" style="background: ${color}"></div>
-                    <span class="text-[10px] text-white/40 uppercase font-black tracking-widest">${problem.category}</span>
+                <div class="p-4 pt-1">
+                  <h3 class="text-white font-black text-sm mb-1 line-clamp-1">${problem.title}</h3>
+                  <div class="flex items-center gap-2 mb-3">
+                    <div class="w-2 h-2 rounded-full" style="background: ${color}"></div>
+                    <span class="text-[9px] text-white/40 uppercase font-black tracking-widest">${problem.category}</span>
                   </div>
-                  <div class="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
-                    <span class="text-[9px] font-black uppercase ${isResolved ? 'text-emerald-500' : 'text-red-500'}">
-                      ${problem.status}
-                    </span>
-                    <button class="text-[9px] font-bold bg-white/5 hover:bg-white/10 text-white px-2 py-1 rounded-md transition-all">VIEW DETAILS</button>
+                  <div class="flex items-center justify-between pt-3 border-t border-white/5">
+                    <div class="flex flex-col">
+                        <span class="text-[7px] font-black text-white/20 uppercase">STATUS_PROTOCOL</span>
+                        <span class="text-[9px] font-black uppercase ${isResolved ? 'text-emerald-500' : 'text-indigo-500'}">
+                            ${problem.status}
+                        </span>
+                    </div>
+                    <button class="text-[8px] font-black bg-white/5 hover:bg-white text-white hover:text-black px-3 py-1.5 rounded-lg transition-all uppercase tracking-widest">Observe</button>
                   </div>
                 </div>
               </div>
             `;
 
-        const marker = L.marker([problem.location.lat, problem.location.lng], { icon })
-          .bindPopup(popupHtml, { className: 'premium-map-popup', minWidth: 240 })
-          .on('click', () => onProblemClick?.(problem))
+        L.marker([problem.location.lat, problem.location.lng], { icon })
+          .bindPopup(popupHtml, { className: 'premium-map-popup', minWidth: 260, offset: [0, -10] })
           .addTo(markerLayer.current!);
       });
     }
-  }, [problems, onProblemClick, showHeatmap]);
+  }, [problems, showHeatmap]);
 
-  // Handle Focus
   useEffect(() => {
     if (mapInstance.current && focusedLocation) {
       mapInstance.current.flyTo([focusedLocation.lat, focusedLocation.lng], 16, { animate: true, duration: 1.5 });
     }
   }, [focusedLocation]);
 
-  // Search Logic
   useEffect(() => {
     const timer = setTimeout(async () => {
       if (searchQuery.length > 2) {
@@ -177,115 +174,84 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const handleSuggestionSelect = (s: MapplsSuggestion) => {
-    setSearchQuery(s.placeName);
-    setShowSuggestions(false);
-    if (s.latitude && s.longitude && mapInstance.current) {
-      mapInstance.current.flyTo([s.latitude, s.longitude], 16);
-    }
-  };
-
-  const recenter = () => {
-    if (navigator.geolocation && mapInstance.current) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        mapInstance.current?.flyTo([pos.coords.latitude, pos.coords.longitude], 15);
-      });
-    }
-  };
-
   return (
     <div className="w-full h-full relative bg-black overflow-hidden">
       <div ref={mapRef} className="w-full h-full" />
 
-      {/* Floating Modern Header */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[90%] md:w-[600px] z-[1000] flex gap-2">
-        <div className="flex-1 relative">
-          <div className="bg-zinc-900/60 backdrop-blur-2xl border border-white/10 rounded-2xl flex items-center px-4 py-3 shadow-2xl transition-all focus-within:ring-2 focus-within:ring-indigo-500/50">
-            <Search size={18} className="text-white/40 mr-3" />
+      {/* Modern Search Hub */}
+      <div className="absolute top-8 left-1/2 -translate-x-1/2 w-[90%] md:w-[600px] z-[1000] flex gap-3">
+        <div className="flex-1 relative group">
+          <div className="bg-zinc-950/80 backdrop-blur-3xl border border-white/10 rounded-[28px] flex items-center px-6 py-4 shadow-2xl transition-all focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:border-indigo-500/30">
+            <Search size={20} className="text-white/20 mr-4" />
             <input
               type="text"
-              placeholder="Search districts, cities, locations..."
-              className="bg-transparent border-none outline-none text-white text-sm w-full placeholder-white/20"
+              placeholder="Search Spatial Hub / Cities / Signals..."
+              className="bg-transparent border-none outline-none text-white text-sm font-bold w-full placeholder-white/10 italic"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="text-white/40 hover:text-white">
-                <X size={16} />
-              </button>
-            )}
+            <Locate onClick={() => { if (navigator.geolocation) navigator.geolocation.getCurrentPosition(pos => mapInstance.current?.flyTo([pos.coords.latitude, pos.coords.longitude], 15)) }} size={18} className="text-white/20 hover:text-white cursor-pointer ml-2" />
           </div>
 
           <AnimatePresence>
             {showSuggestions && suggestions.length > 0 && (
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="absolute mt-2 w-full bg-zinc-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto"
+                initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                className="absolute mt-3 w-full bg-zinc-950/95 backdrop-blur-3xl border border-white/10 rounded-[32px] shadow-[0_30px_60px_rgba(0,0,0,0.8)] overflow-hidden max-h-72 overflow-y-auto custom-scrollbar z-50"
               >
                 {suggestions.map((s, i) => (
-                  <div
+                  <button
                     key={i}
-                    onClick={() => handleSuggestionSelect(s)}
-                    className="px-4 py-3 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-none group flex items-start gap-3"
+                    onClick={() => { setSearchQuery(s.placeName); setShowSuggestions(false); if (s.latitude && s.longitude) mapInstance.current?.flyTo([s.latitude, s.longitude], 16) }}
+                    className="w-full px-6 py-4 hover:bg-white/5 text-left border-b border-white/5 last:border-none group flex items-start gap-4 transition-all"
                   >
-                    <div className="mt-1 w-2 h-2 rounded-full bg-indigo-500 group-hover:scale-150 transition-transform" />
-                    <div className="flex-1">
-                      <div className="text-sm font-bold text-white group-hover:text-indigo-400 transition-colors">{s.placeName}</div>
-                      <div className="text-[10px] text-white/40 truncate">{s.placeAddress}</div>
+                    <div className="mt-1.5 w-1.5 h-4 bg-indigo-500/20 group-hover:bg-indigo-500 rounded-full transition-all" />
+                    <div>
+                      <div className="text-xs font-black text-white group-hover:text-indigo-400 transition-colors uppercase tracking-tight">{s.placeName}</div>
+                      <div className="text-[10px] text-white/20 font-bold truncate max-w-[400px]">{s.placeAddress}</div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Heatmap Toggle */}
         <button
           onClick={() => setShowHeatmap(!showHeatmap)}
-          className={`px-4 py-3 rounded-2xl border flex items-center justify-center transition-all duration-300 backdrop-blur-xl shadow-2xl ${showHeatmap
-              ? 'bg-orange-500/20 border-orange-500/50 text-orange-400'
-              : 'bg-zinc-900/60 border-white/10 text-white/40 hover:text-white'
+          className={`px-6 py-4 rounded-[28px] border flex items-center justify-center transition-all duration-500 backdrop-blur-3xl shadow-2xl ${showHeatmap
+            ? 'bg-orange-500 text-white border-orange-400 shadow-orange-500/20'
+            : 'bg-zinc-950/80 border-white/10 text-white/40 hover:text-white hover:border-white/30'
             }`}
         >
-          <Flame size={18} className={showHeatmap ? 'animate-pulse' : ''} />
-          <span className="ml-2 text-[10px] font-black uppercase tracking-widest hidden md:block">Heatmap</span>
+          <Flame size={20} className={showHeatmap ? 'animate-pulse' : ''} />
+          <span className="ml-3 text-[10px] font-black uppercase tracking-widest hidden md:block">Heat Nexus</span>
         </button>
       </div>
 
-      {/* Control Map Tools */}
-      <div className="absolute bottom-24 right-6 md:bottom-10 md:right-10 flex flex-col gap-3 z-[1000]">
-        <button
-          onClick={recenter}
-          className="w-12 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl flex items-center justify-center shadow-2xl transition-all active:scale-90"
-        >
-          <Locate size={20} />
-        </button>
-      </div>
-
-      {/* Modern Legend */}
-      <div className="absolute bottom-24 left-6 md:bottom-10 md:left-10 z-[1000] hidden lg:block">
-        <div className="bg-zinc-950/80 backdrop-blur-2xl border border-white/10 rounded-2xl p-4 shadow-2xl flex items-center gap-6">
-          {Object.values(ProblemCategory).slice(0, 5).map(cat => (
-            <div key={cat} className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ background: getCategoryColor(cat), color: getCategoryColor(cat) }} />
-              <span className="text-[9px] font-black uppercase tracking-widest text-white/60">{cat}</span>
-            </div>
-          ))}
+      <div className="absolute bottom-24 left-8 md:bottom-12 md:left-12 z-[1000] hidden lg:block">
+        <div className="bg-zinc-950/60 backdrop-blur-3xl border border-white/5 rounded-[32px] p-6 shadow-2xl flex items-center gap-10">
+          <div className="flex flex-col gap-1 pr-6 border-r border-white/5">
+            <span className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em]">Signal Legend</span>
+            <span className="text-xs font-black text-white italic">Spectral Index</span>
+          </div>
+          <div className="flex items-center gap-8">
+            {[ProblemCategory.ROADS, ProblemCategory.GARBAGE, ProblemCategory.WATER_LEAK, ProblemCategory.STREET_LIGHT].map(cat => (
+              <div key={cat} className="flex items-center gap-3">
+                <div className="w-2.5 h-2.5 rounded-full shadow-[0_0_12px_currentColor]" style={{ background: getCategoryColor(cat), color: getCategoryColor(cat) }} />
+                <span className="text-[9px] font-black uppercase tracking-widest text-white/40">{cat.split(' ')[0]}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {!isLoaded && (
         <div className="absolute inset-0 bg-black flex flex-col items-center justify-center z-[2000]">
-          <div className="relative">
-            <div className="w-20 h-20 border-2 border-indigo-500/10 border-t-indigo-500 rounded-full animate-spin" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping" />
-            </div>
-          </div>
-          <p className="mt-6 text-[10px] font-black text-white/20 tracking-[0.4em] uppercase">Loading Neural GIS</p>
+          <div className="w-20 h-20 border-[3px] border-white/5 border-t-indigo-500 rounded-full animate-spin" />
+          <p className="mt-8 text-[11px] font-black text-white tracking-[0.5em] uppercase animate-pulse">Establishing Neural Link</p>
         </div>
       )}
     </div>
