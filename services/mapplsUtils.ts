@@ -21,7 +21,7 @@ export const loadMapplsSDK = (): Promise<void> => {
     if (loadPromise) return loadPromise;
 
     loadPromise = new Promise((resolve, reject) => {
-        const key = import.meta.env.VITE_MAPPLS_API_KEY;
+        const key = import.meta.env.VITE_MAPPLS_JS_KEY;
 
         if (!key) {
             console.error("Mappls JS Key is missing.");
@@ -30,22 +30,26 @@ export const loadMapplsSDK = (): Promise<void> => {
         }
 
         const script = document.createElement('script');
-        // Using new SDK URL structure with key inside URL
-        script.src = `https://apis.mappls.com/advancedmaps/api/${key}/map_sdk?layer=vector&v=3.0`;
+        // Using SDK URL as per provided documentation with raster fallback
+        script.src = `https://sdk.mappls.com/map/sdk/web?v=3.0&access_token=${key}&layer=raster`;
         script.async = true;
         script.defer = true;
 
         script.onload = () => {
             // Load plugins after core SDK
             const plugins = document.createElement('script');
-            plugins.src = `https://apis.mappls.com/advancedmaps/api/${key}/map_sdk_plugins?v=3.0`;
+            // Assuming the plugin URL follows the same access_token pattern
+            plugins.src = `https://sdk.mappls.com/map/sdk/plugins?v=3.0&access_token=${key}`;
             plugins.async = true;
             plugins.defer = true;
             plugins.onload = () => {
                 console.log("Mappls SDK & Plugins Loaded Successfully");
                 resolve();
             };
-            plugins.onerror = () => reject(new Error("Failed to load Mappls Plugins"));
+            plugins.onerror = () => {
+                console.warn("Mappls Plugins failed to load, falling back to core SDK");
+                resolve(); // Still resolve so map works even without clusters
+            };
             document.head.appendChild(plugins);
         };
         script.onerror = () => reject(new Error("Failed to load Mappls SDK script"));

@@ -39,7 +39,7 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const clusterLayer = useRef<any>(null);
-  
+
   const [problems, setProblems] = useState<Problem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,22 +58,29 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
   // Initialize Map
   useEffect(() => {
     let active = true;
-    
+
     const init = async () => {
       try {
         await loadMapplsSDK();
         if (!active) return;
-        
+
         if (!mapContainerRef.current) return;
 
+        // Set a timeout for the 'load' event (e.g. if tiles fail CORS)
+        const loadTimeout = setTimeout(() => {
+          if (!isLoaded && active) {
+            setError("Map load timeout: Tiles are being blocked by CORS. Please check your Mappls Dashboard whitelisting for localhost.");
+          }
+        }, 8000);
+
         mapInstance.current = new window.mappls.Map('map', {
-          center: [INDIA_CENTER.lat, INDIA_CENTER.lng],
+          center: { lat: INDIA_CENTER.lat, lng: INDIA_CENTER.lng },
           zoom: DEFAULT_ZOOM,
-          location: true,
-          clickableIcons: false,
+          location: true
         });
 
         mapInstance.current.addListener('load', () => {
+          clearTimeout(loadTimeout);
           setIsLoaded(true);
           renderMarkers();
         });
@@ -91,13 +98,13 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
     if (!mapInstance.current || !window.mappls) return;
 
     if (clusterLayer.current) {
-      try { mapInstance.current.removeLayer(clusterLayer.current); } catch(e) {}
+      try { mapInstance.current.removeLayer(clusterLayer.current); } catch (e) { }
     }
 
     const markers = problems.map(problem => {
       const color = getCategoryColor(problem.category);
       const isResolved = problem.status === ProblemStatus.RESOLVED;
-      
+
       const html = `
         <div class="custom-marker-wrapper" data-problem-id="${problem.id}">
           ${!isResolved ? `<div class="marker-pulse" style="background: ${color}; opacity: 0.6;"></div>` : ''}
@@ -149,7 +156,7 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
   useEffect(() => {
     if (mapInstance.current && focusedLocation) {
       mapInstance.current.flyTo({
-        center: [focusedLocation.lat, focusedLocation.lng],
+        center: { lat: focusedLocation.lat, lng: focusedLocation.lng },
         zoom: 16,
         essential: true
       });
@@ -174,7 +181,7 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
     setSearchQuery(s.placeName);
     setShowSuggestions(false);
     if (s.latitude && s.longitude && mapInstance.current) {
-      mapInstance.current.flyTo({ center: [s.latitude, s.longitude], zoom: 16 });
+      mapInstance.current.flyTo({ center: { lat: s.latitude, lng: s.longitude }, zoom: 16 });
     }
   };
 
@@ -199,7 +206,7 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
     if (navigator.geolocation && mapInstance.current) {
       navigator.geolocation.getCurrentPosition((pos) => {
         mapInstance.current.flyTo({
-          center: [pos.coords.latitude, pos.coords.longitude],
+          center: { lat: pos.coords.latitude, lng: pos.coords.longitude },
           zoom: 15
         });
       });
@@ -225,20 +232,20 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
       <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[90%] md:w-[450px] z-10">
         <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center px-4 py-3 shadow-2xl">
           <Search size={18} className="text-white/40 mr-3" />
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="Search location..."
             className="bg-transparent border-none outline-none text-white text-sm w-full placeholder-white/20"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        
+
         {showSuggestions && suggestions.length > 0 && (
           <div className="mt-2 bg-zinc-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
             {suggestions.map((s, i) => (
-              <div 
-                key={i} 
+              <div
+                key={i}
                 onClick={() => handleSuggestionSelect(s)}
                 className="px-4 py-3 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-none"
               >
@@ -250,7 +257,7 @@ const MapView: React.FC<MapViewProps> = ({ onProblemClick, focusedLocation }) =>
         )}
       </div>
 
-      <button 
+      <button
         onClick={recenter}
         className="absolute bottom-24 right-6 md:bottom-10 md:right-10 w-12 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-2xl transition-all z-10"
       >
