@@ -30,27 +30,22 @@ export const loadMapplsSDK = (): Promise<void> => {
         }
 
         const script = document.createElement('script');
-        // Using the EXACT URL from the documentation provided in the latest turn
+        // Removing crossOrigin and unnecessary defer to ensure standard auth header/referer behavior
         script.src = `https://sdk.mappls.com/map/sdk/web?v=3.0&access_token=${key}`;
         script.async = true;
-        script.defer = true;
-
-        // Sometimes required for sensitive script loading
-        script.crossOrigin = "anonymous";
 
         script.onload = () => {
-            console.log("Mappls SDK Core Loaded successfully");
-
-            // Try loading plugins as well using the same token-based format
+            console.log("Mappls Core SDK loaded successfully");
+            // Load plugins after core SDK
             const plugins = document.createElement('script');
             plugins.src = `https://sdk.mappls.com/map/sdk/plugins?v=3.0&access_token=${key}`;
             plugins.async = true;
             plugins.onload = () => {
-                console.log("Mappls Plugins Loaded Successfully");
+                console.log("Mappls Plugins loaded successfully");
                 resolve();
             };
             plugins.onerror = () => {
-                console.warn("Mappls Plugins failed to load, continuing with core Map");
+                console.warn("Mappls Plugins failed to load, falling back to core map");
                 resolve();
             };
             document.head.appendChild(plugins);
@@ -58,8 +53,7 @@ export const loadMapplsSDK = (): Promise<void> => {
 
         script.onerror = () => {
             const maskedKey = key.substring(0, 5) + "..." + key.substring(key.length - 3);
-            console.error(`Failed to load script: ${script.src}`);
-            reject(new Error(`Failed to load Mappls SDK script (Key: ${maskedKey}). This is likely a CORS/Whitelisting issue at sdk.mappls.com.`));
+            reject(new Error(`Failed to load Mappls SDK (401). Verify that "${window.location.origin}" is whitelisted for Key: ${maskedKey}.`));
         };
 
         document.head.appendChild(script);
