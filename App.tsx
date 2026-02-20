@@ -6,18 +6,17 @@ import ReportPage from './pages/ReportPage';
 import DashboardPage from './pages/DashboardPage';
 import AdminPage from './pages/AdminPage';
 import LeaderboardPage from './pages/LeaderboardPage';
-import AuthPage from './pages/AuthPage';
+
 import { userStore } from './services/store';
 import { Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [isAuth, setIsAuth] = useState<boolean>(false);
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
     const checkAuth = () => {
       const user = userStore.getCurrentUser();
-      setIsAuth(user.id !== 'guest');
+
       setInitializing(userStore.getIsInitializing());
     };
 
@@ -35,9 +34,6 @@ const App: React.FC = () => {
     );
   }
 
-  if (!isAuth) {
-    return <AuthPage />;
-  }
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

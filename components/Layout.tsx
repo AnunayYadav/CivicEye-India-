@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, Link, useNavigate } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import {
   Map, Plus, LayoutGrid, Globe, Bell, Shield,
   User as UserIcon, ChevronUp, AlertCircle, Trophy,
-  LogOut, Settings, ExternalLink
+  Settings, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { userStore } from '../services/store';
@@ -16,7 +16,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
-  const navigate = useNavigate();
+
   const [user, setUser] = useState(userStore.getCurrentUser());
   const [showProfile, setShowProfile] = useState(false);
 
@@ -39,10 +39,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const handleLogout = async () => {
-    await userStore.logout();
-    navigate('/');
-  };
+
 
 
   return (
@@ -110,12 +107,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       <ExternalLink size={10} />
                     </button>
 
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-2 text-[10px] font-black text-red-500 hover:bg-red-500/10 p-2 rounded-xl transition-all uppercase"
-                    >
-                      <LogOut size={14} /> Log Out Protocol
-                    </button>
+
                   </div>
                 </motion.div>
               )}
